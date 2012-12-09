@@ -6,7 +6,7 @@
 #define THREADING_DEBUG
 
 #ifdef TEST_DEBUG
-#define dbg_test(msg...) log_msg(LOG_ZONE, LOG_DEBUG, msg)
+#define dbg_test(msg...) printf(msg)
 #define dbg_test_hex(data, len)  hex_log(LOG_ZONE, (data), (len))
 #define dbg_test_exec(cmds) do { cmds } while (0)
 #else
@@ -16,7 +16,7 @@
 #endif
 
 #ifdef CALC_DEBUG
-#define dbg_calc(msg...) log_msg(LOG_ZONE, LOG_DEBUG, msg)
+#define dbg_calc(msg...) printf(msg)
 #define dbg_calc_hex(data, len)  hex_log(LOG_ZONE, (data), (len))
 #define dbg_calc_exec(cmds) do { cmds } while (0)
 #else
@@ -26,7 +26,7 @@
 #endif
 
 #ifdef THREADING_DEBUG
-#define dbg_threading(msg...) log_msg(LOG_ZONE, LOG_DEBUG, msg)
+#define dbg_threading(msg...) printf(msg)
 #define dbg_threading_hex(data, len)  hex_log(LOG_ZONE, (data), (len))
 #define dbg_threading_exec(cmds) do { cmds } while (0)
 #else

@@ -15,8 +15,7 @@ int main(int argc, char **argv)
 	size_t data_count = 0;
 	int ret = tester_load_csv_file(argv[1], &data,
 	                               &data_count);
-	assert(ret);
-	
+	assert(ret == 0);
 	/* Feed the data to a testing structure. */
 	
 	/* Start the computation. */

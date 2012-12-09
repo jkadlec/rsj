@@ -6,7 +6,8 @@ SOURCES += \
     scheduler.c \
     main.c \
     tester.c \
-    calculation.c
+    calculation.c \
+    worker.c
 
 HEADERS += \
     tester.h \
