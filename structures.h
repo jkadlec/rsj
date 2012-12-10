@@ -38,23 +38,60 @@ struct rsj_data_in {
 	int price;
 	int volume;
 	int side;
+	char order_index;
+	int go;
 };
 
 typedef struct rsj_data_in rsj_data_in_t;
 
+struct rsj_double {
+	int vol_bid;
+	int price_bid;
+};
+
+typedef struct rsj_double rsj_double_t;
+
+struct lookup_bid {
+	int vol_bid;
+	int price_bid;
+	int *data;
+	rsj_double_t history[128];
+};
+
+typedef struct lookup_bid lookup_bid_t;
+
+struct lookup_ask {
+	int vol_ask;
+	int price_ask;
+	int *data;
+	int history[128];
+};
+
+typedef struct lookup_ask lookup_ask_t;
+
 struct context {
+	/* Testing part. */
 	double g_array[INSTRUMENT_COUNT];
 	double f_array[INSTRUMENT_COUNT];
 	double price_bid_array[INSTRUMENT_COUNT];
-	double fp_array[INSTRUMENT_COUNT];
-	double *best_prices[INSTRUMENT_COUNT];
-	rsj_data_in_t in_array[1024];
-	size_t data_count;
-	pthread_t scheduler_thread;
-	spinlock_t fp_i_locks[INSTRUMENT_COUNT];
+	double fp_i_array[INSTRUMENT_COUNT];
+	double best_bid[INSTRUMENT_COUNT];
+	/* Normal part. */
+//	pthread_t scheduler_thread;
+	spinlock_t insert_instrument_lock[INSTRUMENT_COUNT];
 	pthread_barrier_t global_worker_sync;
-	int running = 0;
-	int global_id;
+	int running = 1;
+	int global_id = 0;
+	spinlock_t sum_lock;
+	double fp_i_sum = 0.0;
+//	minmax_t minmax;
+	lookup_bid_t bids[INSTRUMENT_COUNT];
+	lookup_ask_t asks[INSTRUMENT_COUNT];
+	pthread_t worker_threads[THREAD_COUNT];
+	rsj_data_in_t worker_data[INSTRUMENT_COUNT];
+	/* Overflow OK. */
+	char order_index = 0;
+	int order[128];
 };
 
 typedef struct context context_t;
