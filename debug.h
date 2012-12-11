@@ -1,7 +1,7 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
-#define TEST_DEBUG
+//#define TEST_DEBUG
 #define CALC_DEBUG
 #define THREADING_DEBUG
 

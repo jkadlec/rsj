@@ -40,7 +40,8 @@ struct rsj_data_in {
 	int price;
 	int volume;
 	int side;
-	char order_index;
+	unsigned char order_index;
+	unsigned char specific_index;
 	volatile char go;
 };
 
@@ -57,7 +58,7 @@ struct lookup_bid {
 	int vol_bid;
 	int price_bid;
 	int *data;
-	rsj_double_t history[128];
+	rsj_double_t history[1280];
 };
 
 typedef struct lookup_bid lookup_bid_t;
@@ -66,7 +67,7 @@ struct lookup_ask {
 	int vol_ask;
 	int price_ask;
 	int *data;
-	int history[128];
+	int history[1280];
 };
 
 typedef struct lookup_ask lookup_ask_t;
@@ -93,6 +94,8 @@ struct context {
 	rsj_data_in_t worker_data[INSTRUMENT_COUNT];
 	/* Overflow OK. */
 	char order_index;
+	unsigned char order_indices_bid[INSTRUMENT_COUNT];
+	unsigned char order_indices_ask[INSTRUMENT_COUNT];
 	char bid_order_index;
 	char ask_order_index;
 	volatile int order[128];
@@ -100,6 +103,7 @@ struct context {
 	volatile int order_bid[128];
 	double sum_history[128];
 	double *fp_i_history[INSTRUMENT_COUNT];
+	rsj_data_t **results;
 };
 
 typedef struct context context_t;
