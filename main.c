@@ -8,6 +8,17 @@
 #include "structures.h"
 #include "debug.h"
 
+void do_test(context_t *my_context,
+             rsj_data_t **data, size_t count)
+{
+	dbg_test("Testing %d queries.\n",
+	         count);
+	for (int i = 0; i < count; i++) {
+		Update(my_context, data[i]->seqNum, data[i]->instrument,
+		       data[i]->price, data[i]->volume, data[i]->side);
+	}
+}
+
 int main(int argc, char **argv)
 {
 	/* Load testing .csv */
@@ -17,10 +28,15 @@ int main(int argc, char **argv)
 	                               &data_count);
 	assert(ret == 0);
 	/* Feed the data to a testing structure. */
-	
+	context_t my_context;
+	Initialize(&my_context);
 	/* Start the computation. */
-	
+	do_test(&my_context, data, 20);
 	/* Check the results. */
+	
+	getchar();
+	
+	return 0;
 }
 
 

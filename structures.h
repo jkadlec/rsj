@@ -1,7 +1,9 @@
-#ifndef STRUCTURES_H
+    #ifndef STRUCTURES_H
 #define STRUCTURES_H
 
 #include <pthread.h>
+
+#define THREAD_COUNT 1
 
 #define spinlock_t pthread_spinlock_t
 
@@ -39,7 +41,7 @@ struct rsj_data_in {
 	int volume;
 	int side;
 	char order_index;
-	int go;
+	volatile char go;
 };
 
 typedef struct rsj_data_in rsj_data_in_t;
@@ -79,19 +81,25 @@ struct context {
 	/* Normal part. */
 //	pthread_t scheduler_thread;
 	spinlock_t insert_instrument_lock[INSTRUMENT_COUNT];
-	pthread_barrier_t global_worker_sync;
-	int running = 1;
-	int global_id = 0;
+	pthread_barrier_t *global_worker_sync;
+	char running;
+	char global_id;
 	spinlock_t sum_lock;
-	double fp_i_sum = 0.0;
+	double fp_i_sum;
 //	minmax_t minmax;
 	lookup_bid_t bids[INSTRUMENT_COUNT];
 	lookup_ask_t asks[INSTRUMENT_COUNT];
 	pthread_t worker_threads[THREAD_COUNT];
 	rsj_data_in_t worker_data[INSTRUMENT_COUNT];
 	/* Overflow OK. */
-	char order_index = 0;
-	int order[128];
+	char order_index;
+	char bid_order_index;
+	char ask_order_index;
+	volatile int order[128];
+	volatile int order_ask[128];
+	volatile int order_bid[128];
+	double sum_history[128];
+	double *fp_i_history[INSTRUMENT_COUNT];
 };
 
 typedef struct context context_t;

@@ -14,7 +14,7 @@ int tester_check_results(rsj_data_t *theirs, rsj_data_t *ours,
                          size_t data_count);
 
 //can be in this file for now, once this becomes C++, it need to move
-void Initialize(context_t *context);
+void Initialize(context_t *my_context);
 void Update(context_t *context,
             int seqNum, int instrument, int price, int volume, int side);
 void Result(context_t *context,
