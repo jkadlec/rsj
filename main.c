@@ -32,7 +32,7 @@ int main(int argc, char **argv)
 	my_context.results = data;
 	Initialize(&my_context);
 	/* Start the computation. */
-	do_test(&my_context, data, 133);
+	do_test(&my_context, data, 30);
 	/* Check the results. */
 	
 	getchar();
