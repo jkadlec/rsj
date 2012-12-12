@@ -26,7 +26,8 @@ pthread_barrier_t tmp_barrier;
 #define spinlock_lock pthread_spin_lock
 #define spinlock_unlock pthread_spin_unlock
 
-#define HISTORY_SIZE 16
+#define HISTORY_SIZE 4
+#define SPECIFIC_HISTORY_SIZE 4
 
 void bids_insert(context_t *global_context,
                  lookup_bid_t *bids,
@@ -44,9 +45,9 @@ void bids_insert(context_t *global_context,
 	// TODO musi byt nezavisle na bid a ask
 	dbg_calc("%d:Waiting for other threads to finish with adding.\n",
 	         specific_index);
-//	while (!global_context->order[(specific_index - 1) % HISTORY_SIZE]) {
+//	while (!global_context->order[(specific_index - 1) % SPECIFIC_HISTORY_SIZE]) {
 //		printf("%d\n",
-//		       global_context->order[(specific_index - 1) % HISTORY_SIZE]);
+//		       global_context->order[(specific_index - 1) % SPECIFIC_HISTORY_SIZE]);
 //	}
 	dbg_calc("%d:All good, free to go.\n", specific_index);
 	bids->data[price_bid] = vol_bid;
@@ -81,8 +82,8 @@ void bids_insert(context_t *global_context,
 				bids->history[specific_index].vol_bid = bids->data[index];
 			}
 		} else {
-			bids->history[specific_index].price_bid = bids->history[(unsigned char)(specific_index - 1) % HISTORY_SIZE].price_bid;
-			bids->history[specific_index].vol_bid = bids->history[(unsigned char)(specific_index - 1) % HISTORY_SIZE].vol_bid;
+			bids->history[specific_index].price_bid = bids->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].price_bid;
+			bids->history[specific_index].vol_bid = bids->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].vol_bid;
 		}
 	} else if (price_bid >= bids->price_bid) {
 		dbg_calc("Thread with history index=%d: new best price=%d (bid).\n",
@@ -95,8 +96,8 @@ void bids_insert(context_t *global_context,
 		dbg_calc("Thread with history index=%d: No change, using old values (bid).\n",
 		         specific_index);
 		/* Nothing changed - we need to use the last value. */
-		bids->history[specific_index].price_bid = bids->history[(unsigned char)(specific_index - 1) % HISTORY_SIZE].price_bid;
-		bids->history[specific_index].vol_bid = bids->history[(unsigned char)(specific_index - 1) % HISTORY_SIZE].vol_bid;
+		bids->history[specific_index].price_bid = bids->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].price_bid;
+		bids->history[specific_index].vol_bid = bids->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].vol_bid;
 	}
 	
 	/* Tell other threads that this thread is done with insertion. */
@@ -123,8 +124,8 @@ void asks_insert(context_t *global_context,
 //	spinlock_lock(instrument_lock);
 	dbg_calc("%d:Waiting for other threads to finish with adding.\n",
 	         specific_index);
-//	while (!global_context->order[(specific_index - 1) % HISTORY_SIZE]) {
-//		printf(global_context->order[(specific_index - 1) % HISTORY_SIZE]);
+//	while (!global_context->order[(specific_index - 1) % SPECIFIC_HISTORY_SIZE]) {
+//		printf(global_context->order[(specific_index - 1) % SPECIFIC_HISTORY_SIZE]);
 //	}
 	dbg_calc("%d:All good, free to go.\n", specific_index);
 	asks->data[price_ask] = vol_ask;
@@ -157,7 +158,7 @@ void asks_insert(context_t *global_context,
 				asks->history[specific_index] = asks->data[index];
 			}
 		} else {
-			asks->history[specific_index] = asks->history[(unsigned char)(specific_index - 1) % HISTORY_SIZE];
+			asks->history[specific_index] = asks->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE];
 		}
 	} else if (price_ask <= asks->price_ask) {
 		dbg_calc("Thread with history index=%d: new best price (ask).\n",
@@ -167,7 +168,7 @@ void asks_insert(context_t *global_context,
 		asks->history[specific_index] = vol_ask;
 	} else {
 		dbg_calc("%d: no change, using history.\n", specific_index);
-		asks->history[specific_index] = asks->history[(unsigned char)(specific_index - 1) % HISTORY_SIZE];
+		asks->history[specific_index] = asks->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE];
 	}
 	
 //	asks->history[specific_index].price_bid = bids->price_bid;
@@ -319,6 +320,14 @@ void *worker_start(void *data)
 				global_context->worker_data[id].order_index;
 			int specific_index =
 				global_context->worker_data[id].specific_index;
+			assert(order_index < HISTORY_SIZE);
+			assert(specific_index < SPECIFIC_HISTORY_SIZE);
+                        printf("seqNum=%d history=%d Sums: ",
+                               seqNum, order_index);
+                        for (int i = 0; i < HISTORY_SIZE; i++) {
+                            printf("%d=%f, ", i, global_context->sum_history[i]);
+                        }
+                        printf("\n");
 			if (side == SIDE_BUYING) {
 				/* Lock instrument lock. */
 //				spinlock_lock(global_context->fp_i_locks[instrument]);
@@ -327,17 +336,17 @@ void *worker_start(void *data)
 				            &(global_context->bids[instrument]),
 				            NULL, order_index, specific_index, volume, price);
 				dbg_calc("Thread=%d seqNum=%d Instrument=%d index=%d Loading other data from history=%d\n",
-				         id, seqNum, instrument, specific_index, (unsigned char)(specific_index - 1) % HISTORY_SIZE);
-				global_context->asks[instrument].history[specific_index] = global_context->asks[instrument].history[(unsigned char)(specific_index - 1) % HISTORY_SIZE];
+				         id, seqNum, instrument, specific_index, (unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE);
+				global_context->asks[instrument].history[specific_index] = global_context->asks[instrument].history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE];
 			} else {
 //				spinlock_lock(global_context->fp_i_locks[instrument]);
 				asks_insert(global_context,
 				            &(global_context->asks[instrument]),
 				            NULL, order_index, specific_index, volume, price);
 				dbg_calc("Thread=%d seqNum=%d Instrument=%d index=%d Loading other data from history=%d\n",
-				         id, seqNum, instrument, specific_index, (unsigned char)(specific_index - 1) % HISTORY_SIZE);
-				global_context->bids[instrument].history[specific_index].price_bid = global_context->bids[instrument].history[(unsigned char)(specific_index - 1) % HISTORY_SIZE].price_bid;
-				global_context->bids[instrument].history[specific_index].vol_bid = global_context->bids[instrument].history[(unsigned char)(specific_index - 1) % HISTORY_SIZE].vol_bid;
+				         id, seqNum, instrument, specific_index, (unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE);
+				global_context->bids[instrument].history[specific_index].price_bid = global_context->bids[instrument].history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].price_bid;
+				global_context->bids[instrument].history[specific_index].vol_bid = global_context->bids[instrument].history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].vol_bid;
 			}
 			
 			dbg_threading("Thread=%d: Data inserted.\n",
@@ -360,9 +369,9 @@ void *worker_start(void *data)
 				dbg_calc("Thread=%d returning 0 for seqNum=%d - not enough data (%d %d %d).\n",
 				         id, seqNum, pricebid, volbid, volask);
 				/* Sum history unchanged. */
-				global_context->fp_i_history[instrument][order_index] = 0.0;
+				global_context->fp_i_history[instrument][specific_index] = 0.0;
 				global_context->sum_history[order_index] =
-					global_context->sum_history[(unsigned char)(order_index - 1) % HISTORY_SIZE] - global_context->fp_i_history[instrument][(unsigned char)(order_index - 1) % HISTORY_SIZE];
+					global_context->sum_history[(unsigned char)(order_index - 1) % HISTORY_SIZE] - global_context->fp_i_history[instrument][(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE];
 				printf("Thread=%d seqNum=%d Instrument=%d: reusing sum history (history=%d sum=%f).\n",
 				         id, seqNum, instrument, order_index, global_context->sum_history[order_index]);
 				spinlock_lock(&global_context->sum_lock);
@@ -380,11 +389,11 @@ void *worker_start(void *data)
 			
 			/* Change fp_sum accordingly. */
 			double sum = global_context->sum_history[(unsigned char)(order_index - 1) % HISTORY_SIZE];
-			
+					
 			printf("Thread %d: seqNum=%d Instrument=%d History=%d Loading sum=%f\n", id ,seqNum, instrument, (unsigned char)(order_index - 1) % HISTORY_SIZE,
 			       sum);
 //			printf("Thread %d: seqNum=%d Instrument=%d History=%d Deducting from history=%f\n",
-//			       id ,seqNum, instrument, (specific_index - 1) % HISTORY_SIZE,
+//			       id ,seqNum, instrument, (specific_index - 1) % SPECIFIC_HISTORY_SIZE,
 //			       global_context->fp_i_history[instrument][(specific_index -1) % HISTORY_SIZE]);
 			
 			
@@ -400,7 +409,7 @@ void *worker_start(void *data)
 //				         id);
 //			} else {
 			{
-				sum -= global_context->fp_i_history[instrument][(unsigned char)(order_index -1) % HISTORY_SIZE];
+				sum -= global_context->fp_i_history[instrument][(unsigned char)(specific_index -1) % HISTORY_SIZE];
 				sum += fp_i;
 //		sum += fp_i;
 				double res = fp_i / sum;
@@ -410,7 +419,7 @@ void *worker_start(void *data)
 				printf("Thread %d: seqNum=%d Instrument=%d: %f/%f\n",
 				       id, seqNum, instrument, fp_i, sum);
 				Result(global_context, seqNum, res);//compute_fp_global(global_context->fp_sums,
-				printf("%d: seqNum=%d History=%d Deducting from sum=%f\n", id, seqNum, specific_index, global_context->fp_i_history[instrument][(unsigned char)(order_index -1) % HISTORY_SIZE]);
+				printf("%d: seqNum=%d History=%d Deducting from sum=%f\n", id, seqNum, specific_index, global_context->fp_i_history[instrument][(unsigned char)(specific_index -1) % HISTORY_SIZE]);
 				global_context->sum_history[order_index] = sum;
 				printf("%d: seqNum=%d History=%d Adding to sum=%f\n",
 				       id, seqNum, order_index, fp_i);
@@ -420,7 +429,7 @@ void *worker_start(void *data)
 				       sum);
                                 printf("%d: seqNum=%d History=%d Saving fp_i=%f\n",
                                        id, seqNum, specific_index, fp_i);
-				global_context->fp_i_history[instrument][order_index] = fp_i;
+				global_context->fp_i_history[instrument][specific_index] = fp_i;
 //				printf("Thread=%d: Saving sum=%f\n",
 //				         id, sum);
 			}
@@ -448,6 +457,8 @@ void Initialize(context_t *my_context)
 	int ret = pthread_barrier_init(&tmp_barrier, NULL,
 	                               THREAD_COUNT + 1);
 	assert(ret == 0);
+	
+	my_context->fp_i_sum = 0.0;
 	
 	/* Init worker structures. */
 	for (int i = 0; i < INSTRUMENT_COUNT; i++) {
@@ -556,14 +567,14 @@ void Update(context_t *my_context, int seqNum, int instrument,
 		}
 	}
 	/* Fill thread's data. Computation will start automatically. */
-//	memcpy(&(my_contex  t->worker_data[id]), &tmp_data, sizeof(tmp_data));
+//	memcpy(&(my_context->worker_data[id]), &tmp_data, sizeof(tmp_data));
 	my_context->worker_data[id].seqNum = seqNum;
 	my_context->worker_data[id].instrument = instrument;
 	my_context->worker_data[id].side = side;
 	my_context->worker_data[id].volume = volume;
 	my_context->worker_data[id].price = price;
 	my_context->worker_data[id].order_index = (unsigned char)(my_context->order_index++) % HISTORY_SIZE;
-	my_context->worker_data[id].specific_index = (unsigned char)(my_context->order_indices_ask[instrument]++) % HISTORY_SIZE;
+	my_context->worker_data[id].specific_index = (unsigned char)(my_context->order_indices_ask[instrument]++) % SPECIFIC_HISTORY_SIZE;
 	spinlock_lock(&my_context->sum_lock);
 	my_context->worker_data[id].go = 1;
 	spinlock_unlock(&my_context->sum_lock);
