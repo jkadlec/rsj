@@ -3,7 +3,9 @@
 
 #include <pthread.h>
 
-#define THREAD_COUNT 2
+#define THREAD_COUNT 4
+#define HISTORY_SIZE 8
+#define SPECIFIC_HISTORY_SIZE 8
 
 #define spinlock_t pthread_spinlock_t
 
@@ -78,6 +80,8 @@ struct context {
 	char global_id;
 	lookup_bid_t bids[INSTRUMENT_COUNT];
 	lookup_ask_t asks[INSTRUMENT_COUNT];
+	pthread_spinlock_t instrument_locks[HISTORY_SIZE];
+	pthread_spinlock_t sum_locks[HISTORY_SIZE];
 	pthread_t worker_threads[THREAD_COUNT];
 	rsj_data_in_t worker_data[INSTRUMENT_COUNT];
 	/* Overflow OK. */

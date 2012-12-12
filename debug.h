@@ -2,8 +2,8 @@
 #define DEBUG_H
 
 //#define TEST_DEBUG
-#define CALC_DEBUG
-#define THREADING_DEBUG
+//#define CALC_DEBUG
+//#define THREADING_DEBUG
 
 #ifdef TEST_DEBUG
 #define dbg_test(msg...) printf(msg)
