@@ -1,9 +1,9 @@
-    #ifndef STRUCTURES_H
+#ifndef STRUCTURES_H
 #define STRUCTURES_H
 
 #include <pthread.h>
 
-#define THREAD_COUNT 1
+#define THREAD_COUNT 2
 
 #define spinlock_t pthread_spinlock_t
 
@@ -40,9 +40,9 @@ struct rsj_data_in {
 	int price;
 	int volume;
 	int side;
-	unsigned char order_index;
-	unsigned char specific_index;
-	volatile char go;
+	char order_index;
+	char specific_index;
+	char go;
 };
 
 typedef struct rsj_data_in rsj_data_in_t;
@@ -73,21 +73,9 @@ struct lookup_ask {
 typedef struct lookup_ask lookup_ask_t;
 
 struct context {
-	/* Testing part. */
-	double g_array[INSTRUMENT_COUNT];
-	double f_array[INSTRUMENT_COUNT];
-	double price_bid_array[INSTRUMENT_COUNT];
-	double fp_i_array[INSTRUMENT_COUNT];
-	double best_bid[INSTRUMENT_COUNT];
-	/* Normal part. */
-//	pthread_t scheduler_thread;
-	spinlock_t insert_instrument_lock[INSTRUMENT_COUNT];
 	pthread_barrier_t *global_worker_sync;
 	char running;
 	char global_id;
-	spinlock_t sum_lock;
-	double fp_i_sum;
-//	minmax_t minmax;
 	lookup_bid_t bids[INSTRUMENT_COUNT];
 	lookup_ask_t asks[INSTRUMENT_COUNT];
 	pthread_t worker_threads[THREAD_COUNT];
@@ -95,15 +83,9 @@ struct context {
 	/* Overflow OK. */
 	char order_index;
 	unsigned char order_indices_bid[INSTRUMENT_COUNT];
-	unsigned char order_indices_ask[INSTRUMENT_COUNT];
-	char bid_order_index;
-	char ask_order_index;
-	volatile int order[128];
-	volatile int order_ask[128];
-	volatile int order_bid[128];
+	int order[128];
 	double sum_history[128];
 	double *fp_i_history[INSTRUMENT_COUNT];
-	rsj_data_t **results;
 };
 
 typedef struct context context_t;

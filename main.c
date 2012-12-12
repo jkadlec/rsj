@@ -29,10 +29,9 @@ int main(int argc, char **argv)
 	assert(ret == 0);
 	/* Feed the data to a testing structure. */
 	context_t my_context;
-	my_context.results = data;
 	Initialize(&my_context);
 	/* Start the computation. */
-	do_test(&my_context, data, 200);
+	do_test(&my_context, data, 18);
 	/* Check the results. */
 	
 	getchar();
