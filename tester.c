@@ -11,6 +11,7 @@
 #include "structures.h"
 
 pthread_barrier_t tmp_barrier;
+spinlock_t tmp_lock;
 
 #define AVAILABLE_MEMORY 2 * 1024 * 1000
 
@@ -26,6 +27,17 @@ pthread_barrier_t tmp_barrier;
 #define spinlock_lock pthread_spin_lock
 #define spinlock_unlock pthread_spin_unlock
 
+spinlock_t sum_locks[HISTORY_SIZE];
+
+void sum_lock(int index)
+{
+	spinlock_lock(&(sum_locks[index]));
+}
+
+void sum_unlock(int index)
+{
+	spinlock_unlock(&(sum_locks[index]));
+}
 
 void bids_insert(context_t *global_context,
                  lookup_bid_t *bids,
@@ -38,14 +50,17 @@ void bids_insert(context_t *global_context,
 	         specific_index, vol_bid, price_bid);
 	/* Wait until previous data is inserted. */
 	unsigned char index = (unsigned char)(history_index - 1) % HISTORY_SIZE;
+dbg_threading_exec(
+	printf("Order:\n");
+	for (int i = 0; i < HISTORY_SIZE; i++) {
+		printf("%d=%d ", i, global_context->order[i]);
+	}
+	printf("\n");
+);
 	dbg_calc("%d:Waiting for thread with order=%d to finish with adding.\n",
 	         specific_index, index);
-//	assert(global_context->order[history_index] != 2);
-//	while ((__sync_val_compare_and_swap(&(global_context->order[(unsigned char)(history_index + 1) % HISTORY_SIZE]), 2, 2)) == 0) {
-//		;
-//	}
 	__sync_lock_test_and_set(&(global_context->order[history_index]), 0);
-	while ((__sync_val_compare_and_swap(&(global_context->order[index]), 1, 1)) == 0) {
+	while (!__sync_bool_compare_and_swap(&(global_context->order[index]), 1, 1)) {
 		;
 	}
 	dbg_calc("%d:All good, free to go.\n", specific_index);
@@ -72,7 +87,8 @@ void bids_insert(context_t *global_context,
 				bids->history[specific_index].price_bid = 0;
 				bids->history[specific_index].vol_bid = 0;
 			} else {
-				dbg_calc("Thread with history index=%d: New best price=%d, volume=%d. (used to be %d)\n",
+				dbg_calc("Thread with history index=%d: New best price=%d,"
+				         " volume=%d. (used to be %d)\n",
 				         specific_index, index, bids->data[index],
 				         price_bid);
 				bids->price_bid = index;
@@ -118,11 +134,16 @@ void asks_insert(context_t *global_context,
 	         "priceAsk=%d (current best = %d %d)\n",
 	          specific_index, vol_ask, price_ask, asks->price_ask, 
 	         asks->vol_ask);
+        printf("Order:\n");
+        for (int i = 0; i < HISTORY_SIZE; i++) {
+            printf("%d=%d ", i, global_context->order[i]);
+        }
+        printf("\n");
 	unsigned char index = (unsigned char)(history_index - 1) % HISTORY_SIZE;
 	dbg_calc("%d:Waiting for thread with order=%d to finish with adding.\n",
 			history_index, index);
 	__sync_lock_test_and_set(&global_context->order[history_index], 0);
-	while ((__sync_val_compare_and_swap(&global_context->order[index], 1, 1)) == 0) {
+	while (!__sync_bool_compare_and_swap(&(global_context->order[index]), 1, 1)) {
 		;
 	}
 	dbg_calc("%d:All good, free to go.\n", specific_index);
@@ -177,62 +198,6 @@ void asks_insert(context_t *global_context,
 
 }
 
-int tester_load_csv_file(const char *filename, rsj_data_t ***data,
-                         size_t *data_count)
-{
-	FILE *f = fopen(filename, "r");
-	assert(f);
-	
-	dbg_test("Loading file=%s\n",
-	         filename);
-	
-	*data = malloc(102400);
-	assert(data);
-	
-	/* Read line by line. */
-	rsj_data_t tmp_data;
-	int ret = 0;
-	size_t i = 0;
-	while ((ret = fscanf(f, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f\n",
-	                     &tmp_data.seqNum,
-	                     &tmp_data.instrument,
-	                     &tmp_data.price,
-	                     &tmp_data.volume,
-	                     &tmp_data.side,
-	                     &tmp_data.priceBid_i,
-	                     &tmp_data.volBid_i,
-	                     &tmp_data.priceAsk_i,
-	                     &tmp_data.volAsk_i,
-	                     &tmp_data.equity_i,
-	                     &tmp_data.f_i,
-	                     &tmp_data.g_i,
-	                     &tmp_data.fp_i,
-	                     &tmp_data.fp_global_i)) == 14) {
-		(*data)[i] = malloc(sizeof(rsj_data_t));
-		assert((*data)[i]);
-		(*data)[i]->seqNum = tmp_data.seqNum;
-		(*data)[i]->instrument = tmp_data.instrument;
-		(*data)[i]->price = tmp_data.price;
-		(*data)[i]->volume = tmp_data.volume;
-		(*data)[i]->side = tmp_data.side;
-		(*data)[i]->volBid_i = tmp_data.volBid_i;
-		(*data)[i]->volAsk_i = tmp_data.volAsk_i;
-		(*data)[i]->priceAsk_i = tmp_data.priceAsk_i;
-		(*data)[i]->priceBid_i = tmp_data.priceBid_i;
-		(*data)[i]->equity_i = tmp_data.equity_i;
-		(*data)[i]->f_i = tmp_data.f_i;
-		(*data)[i]->fp_i = tmp_data.fp_i;
-		(*data)[i]->g_i = tmp_data.g_i;
-		(*data)[i]->fp_global_i = tmp_data.fp_global_i;
-		i++;
-	}
-	
-	*data_count = ++i;
-	dbg_test("Loaded %d queries.\n",
-	         i);
-	return RSJ_EOK;
-}
-
 #define SIDE_BUYING 0
 #define SIDE_SELLING 1
 #define PRICE_CANCEL 0
@@ -251,33 +216,7 @@ double compute_fp_i(double equity, int pricebid_i)
 	return (double)pricebid_i + f + g;
 }
 
-//double do_work(int 
-//               minmax_t *minmax,
-//               int seqNum,
-//               int instrument,
-//               int price, int volume, int side,
-//               double fp_i_prev,
-//               double fp_sum)
-//{
-//	/* Lock fpi lock. */
-//	double equity = (volbid + volask) * volbid;
-////	spinlock_lock(&(context->fp_i_locks[instrument]));
-//	/* Calculate fp_i */
-//	double fpi = compute_fp_i(equity, pricebid);
-//	/* Unlock fpi lock. */
-////	spinlock_unlock(&(context->fp_i_locks[instrument]));
-//	return fpi / (fp_sum - fp_i_prev + fpi);
-//}
-
-//void sums_add_fp_i(void *sums, int seqNum, double fp_i)
-//{
-//	double fp_i_previous = sums
-//}
-
-//inline double compute_fp_global(void *sums, int seqNum, double fp_i)
-//{
-//	return fp_i / sums_lookup_sum(sums, seqNum);
-//}
+int shared = 0;
 
 void *worker_start(void *data)
 {
@@ -291,7 +230,7 @@ void *worker_start(void *data)
 	/* While computation not done */
 	while (global_context->running) {
 		/* Wait for work. */
-		if ((__sync_val_compare_and_swap(&(global_context->worker_data[id].go), 1, 1)) == 1) {
+		if (__sync_bool_compare_and_swap(&(global_context->worker_data[id].go), 1, 1)) {
 			dbg_threading("Thread=%d starting computation with seqNum=%d.\n",
 			              id, global_context->worker_data[id].seqNum);
 			/* Get work. */
@@ -311,6 +250,36 @@ void *worker_start(void *data)
 				global_context->worker_data[id].specific_index;
 			assert(order_index < HISTORY_SIZE);
 			assert(specific_index < SPECIFIC_HISTORY_SIZE);
+			printf("seqNum=%d index=%d, waiting for previous calc to be completed=%d\n",
+			       seqNum,
+			       order_index, (unsigned char)(order_index - 1) % HISTORY_SIZE);
+			while (__sync_bool_compare_and_swap(&(global_context->order[(unsigned char)(order_index - 1) % HISTORY_SIZE]), 0, 0)) {
+				;
+			}
+			__sync_lock_test_and_set(&(global_context->order[order_index]), 0);
+			shared++;
+			printf("seqNum=%d index=%d, it has modified the shared variable to be=%d\n",
+			       seqNum,
+			       order_index, shared);
+			printf("seqNum=%d index=%d Order before: ",seqNum, order_index);
+			for (int i = 0; i < HISTORY_SIZE; i++) {
+				printf("%d", global_context->order[i]);
+			}		
+			printf("\n");
+			printf("seqNum=%d index=%d Order after : ",seqNum, order_index);
+			for (int i = 0; i < HISTORY_SIZE; i++) {
+				if (i == order_index) {
+					printf("1");
+				} else {
+					printf("%d", global_context->order[i]);
+				}
+			}
+			printf("\n");
+			assert(seqNum == shared);
+			__sync_lock_test_and_set(&(global_context->order[order_index]), 1);
+			__sync_lock_test_and_set(&global_context->worker_data[id].go,
+			                         0);
+			continue;
 dbg_calc_exec(
 		dbg_calc("seqNum=%d history=%d Sums: ",
 		       seqNum, order_index);
@@ -352,15 +321,19 @@ dbg_calc_exec(
 				dbg_calc("Thread=%d returning 0 for seqNum=%d - not enough data (%d %d %d).\n",
 				         id, seqNum, pricebid, volbid, volask);
 				/* Sum history unchanged. */
+				while (!__sync_bool_compare_and_swap(&global_context->order_sum[(unsigned char)(order_index - 1) % HISTORY_SIZE], 1, 1)) {
+					assert(global_context->order_sum[(unsigned char)(order_index - 1) % HISTORY_SIZE] == 0);
+				}
+				__sync_lock_test_and_set(&(global_context->order_sum[order_index]), 0);
 				global_context->fp_i_history[instrument][specific_index] = 0.0;
 				global_context->sum_history[order_index] =
 					global_context->sum_history[(unsigned char)(order_index - 1) % HISTORY_SIZE] - global_context->fp_i_history[instrument][(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE];
 				dbg_calc("Thread=%d seqNum=%d Instrument=%d Index=%d reusing sum history (from history=%d sum=%f (deducted=%f)).\n",
 				         id, seqNum, instrument, order_index, order_index - 1, global_context->sum_history[order_index],
 				       global_context->fp_i_history[instrument][(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE]);
+				__sync_lock_test_and_set(&global_context->order_sum[order_index], 1);
 				__sync_lock_test_and_set(&global_context->worker_data[id].go,
 				                         0);
-				__sync_lock_test_and_set(&global_context->order[order_index], 2);
 				continue;
 			}
 			
@@ -375,9 +348,15 @@ dbg_calc_exec(
 			printf("Thread=%d order=%d seqNum=%d instrument=%d Waiting for index=%d to compute sum.\n",
 			              id, order_index, seqNum, instrument,
 			              (unsigned char)(order_index - 1) % HISTORY_SIZE);
-			__sync_lock_test_and_set(&global_context->order[order_index], 1);
-			while ((__sync_val_compare_and_swap(&global_context->order[(unsigned char)(order_index - 1) % HISTORY_SIZE], 2, 2)) == 1) {
+			while (!__sync_bool_compare_and_swap(&global_context->order_sum[(unsigned char)(order_index - 1) % HISTORY_SIZE], 1, 1)) {
+				assert(global_context->order_sum[(unsigned char)(order_index - 1) % HISTORY_SIZE] == 0);
 			}
+			__sync_lock_test_and_set(&(global_context->order_sum[order_index]), 0);
+			for (int i = order_index - 1; i > 0; i--) {
+				printf("%d=%d\n", i, global_context->order_sum[i]);
+				assert(global_context->order_sum[i] == 1);
+			}
+			assert(global_context->order_sum[order_index] == 0);
 			printf("Thread=%d order=%d seqNum=%d instrument=%d index=%d unlocked sum.\n",
 			              id, order_index, seqNum, instrument, order_index - 1);
 			double sum = global_context->sum_history[(unsigned char)(order_index - 1) % HISTORY_SIZE];
@@ -406,9 +385,9 @@ dbg_calc_exec(
 			dbg_calc("%d: seqNum=%d History=%d Saving fp_i=%f\n",
 			id, seqNum, specific_index, fp_i);
 			global_context->fp_i_history[instrument][specific_index] = fp_i;
-			printf("%d: seqNum=%d index=%d Unlocking sums.\n",
+			dbg_threading("%d: seqNum=%d index=%d Unlocking sums.\n",
 			id, seqNum, order_index);
-			__sync_lock_test_and_set(&global_context->order[order_index], 2);
+			__sync_lock_test_and_set(&global_context->order_sum[order_index], 1);
 			/* Work done. */
 			__sync_lock_test_and_set(&global_context->worker_data[id].go,
 			                         0);
@@ -431,6 +410,7 @@ void Initialize(context_t *my_context)
 	int ret = pthread_barrier_init(&tmp_barrier, NULL,
 	                               THREAD_COUNT + 1);
 	assert(ret == 0);
+	spinlock_init(&tmp_lock, PTHREAD_PROCESS_SHARED);
 	
 	/* Init worker structures. */
 	for (int i = 0; i < INSTRUMENT_COUNT; i++) {
@@ -447,7 +427,7 @@ void Initialize(context_t *my_context)
 	for (int i = 0; i < HISTORY_SIZE; i++) {
 		spinlock_init(&(my_context->instrument_locks[i]),
 		              PTHREAD_PROCESS_SHARED);
-		spinlock_init(&(my_context->sum_locks[i]),
+		spinlock_init(&(sum_locks[i]),
 		              PTHREAD_PROCESS_SHARED);
 	}
 
@@ -475,7 +455,7 @@ void Initialize(context_t *my_context)
 	for (int i = 0; i < INSTRUMENT_COUNT; i++) {
 		//toto bude fungovat, ale bidy potrebujou vic dat nez asky
 		my_context->asks[i].data =
-			malloc(2000 * sizeof(int));
+			malloc(200 * sizeof(int));
 		assert(my_context->asks[i].data);
 		for (int j = 0; j < 200 ; j++) {
 			my_context->asks[i].data[j] = 0;
@@ -483,7 +463,7 @@ void Initialize(context_t *my_context)
 		my_context->asks[i].vol_ask = 0;
 		my_context->asks[i].price_ask = INT_MAX;
 		my_context->bids[i].data =
-			malloc(2000 * sizeof(int));
+			malloc(200 * sizeof(int));
 		assert(my_context->bids[i].data);
                 for (int j = 0; j < 200; j++) {
                     my_context->bids[i].data[j] = 0;
@@ -497,13 +477,14 @@ void Initialize(context_t *my_context)
 		my_context->bids[i].vol_bid = 0;
 	}
 	
-//	memset(my_context->order_ask, 0, HISTORY_SIZE);
 	for (int i = 0; i < HISTORY_SIZE; i++) {
-		my_context->order[i] = 1;
+		my_context->order[i] = 0;
+		my_context->order_sum[i] = 0;
 		my_context->sum_history[i] = 0.0;
 	}
-//	memset(my_context->order_bid, 0, HISTORY_SIZE);
-//	memset(my_context->sum_history, 0, sizeof(my_context->sum_history));
+	
+	my_context->order[HISTORY_SIZE - 1] = 1;
+	my_context->order[128] = 1;
 	
 	dbg_threading("Structures allocated. (context=%p)\n",
 	              my_context);
@@ -529,12 +510,12 @@ void Update(context_t *my_context, int seqNum, int instrument,
 {
 	char index = (unsigned char)(my_context->order_index) % HISTORY_SIZE;
 	/* Find available thread to give work to. Blocks if all threads are full, at least for now. */
-	dbg_calc("Getting free thread ID.\n");
+//	dbg_calc("Getting free thread ID.\n");
 	int id = -1;
 	while (id < 0) {
 		for (int i = 0; i < THREAD_COUNT; i++) {
-			if (__sync_val_compare_and_swap(&my_context->worker_data[i].go,
-			                                0, 0) == 0) {
+			if (__sync_bool_compare_and_swap(&my_context->worker_data[i].go,
+			                                0, 0)) {
 				id = i;
 			}
 		}
@@ -547,7 +528,9 @@ void Update(context_t *my_context, int seqNum, int instrument,
 	my_context->worker_data[id].volume = volume;
 	my_context->worker_data[id].price = price;
 	my_context->worker_data[id].order_index = (unsigned char)(my_context->order_index++) % HISTORY_SIZE;
+	//todo bitove pole
 	my_context->worker_data[id].specific_index = (unsigned char)(my_context->order_indices_bid[instrument]++) % SPECIFIC_HISTORY_SIZE;
+	my_context->order[(unsigned char)(my_context->worker_data[id].order_index + 1) % HISTORY_SIZE] = 0;
 	__sync_lock_test_and_set(&my_context->worker_data[id].go,
 	                         1);
 //	fprintf(stderr, "Update ID=%d called.\n",

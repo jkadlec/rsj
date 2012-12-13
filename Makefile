@@ -11,8 +11,8 @@
 CC            = gcc
 CXX           = gcc
 DEFINES       = -DQT_WEBKIT
-CFLAGS        = -pipe -O0 -Wall -W $(DEFINES) -std=gnu99 -lpthread -g
-CXXFLAGS      = -pipe -O0 -Wall -W $(DEFINES)
+CFLAGS        = -pipe -O2 -Wall -W $(DEFINES) -std=gnu99 -lpthread -g
+CXXFLAGS      = -pipe -O2 -Wall -W $(DEFINES)
 INCPATH       = -I/usr/share/qt4/mkspecs/linux-gcc -I.
 LINK          = gcc -lpthread -lm
 LFLAGS        = -Wl,-O2

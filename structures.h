@@ -3,9 +3,9 @@
 
 #include <pthread.h>
 
-#define THREAD_COUNT 4
-#define HISTORY_SIZE 8
-#define SPECIFIC_HISTORY_SIZE 8
+#define THREAD_COUNT 2
+#define HISTORY_SIZE 4
+#define SPECIFIC_HISTORY_SIZE 4
 
 #define spinlock_t pthread_spinlock_t
 
@@ -87,7 +87,8 @@ struct context {
 	/* Overflow OK. */
 	char order_index;
 	unsigned char order_indices_bid[INSTRUMENT_COUNT];
-	int order[128];
+	int order[256];
+	int order_sum[128];
 	double sum_history[128];
 	double *fp_i_history[INSTRUMENT_COUNT];
 };
