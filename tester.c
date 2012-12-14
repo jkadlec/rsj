@@ -11,17 +11,8 @@
 #include "structures.h"
 
 pthread_barrier_t tmp_barrier;
-spinlock_t tmp_lock;
-
-#define AVAILABLE_MEMORY 2 * 1024 * 1000
 
 #define unlikely(x) __builtin_expect(!!(x), 0)
-
-//instrumenty se muzou vkladat do struktury paralelne, ale vlozeni pro instrumenty se musi serializovat - jak?
-//pred vracenim fp_i_total musim vedet, ze vlakna predemnou uz dobehla a maji zapsano v fp_sum, stejne tak jsou potreba predchozi fp_i pro vsechna asi, ale to muze byt nejak ulozene pospolu
-//pro kazdy seqnum potrebuju:
-//ceny budou stacit jedny globalni, ty se upravuji je pro stejne instrumenty, ale jako historie bude stacit ten nejlepsi a nejhorsi, to se porovna s tim, co tam vkladam ja a je to. Jen v pripade, ze to odstranuju, se bude muset neco dit a to bude muset mit sakra prioritu, jinak to bude pomale.
-//				vlozit, ceny, volumy, fp_n
 
 #define spinlock_init pthread_spin_init
 #define spinlock_lock pthread_spin_lock
@@ -38,11 +29,11 @@ dbg_threading_exec(
 );
 }
 
-void bids_insert(context_t *global_context,
-                 lookup_bid_t *bids,
-                 spinlock_t *instrument_lock,
-                 int history_index, int specific_index,
-                 int vol_bid, int price_bid)
+static void bids_insert(context_t *global_context,
+                        lookup_bid_t *bids,
+                        spinlock_t *instrument_lock,
+                        int history_index, int specific_index,
+                        int vol_bid, int price_bid)
 {
 	dbg_calc("Thread with history index=%d: Inserting bid, volBid=%d,"
 	         "priceBid=%d\n",
@@ -207,8 +198,6 @@ double compute_fp_i(double equity, int pricebid_i)
 {
 	double f = 1.5 * (1 - equity - ((equity - 1) * (equity - 1)));
 	double g = pi2 * atan(equity / 3.9) - (equity * atanconst);
-//	printf("Pricebid = %d, eq= %f, f=%f g=%f\n",
-//	       pricebid_i, equity, f, g);
 	return (double)pricebid_i + f + g;
 }
 
@@ -531,6 +520,7 @@ void Update(context_t *my_context, int seqNum, int instrument,
 	//todo bitove pole
 	my_context->worker_data[id].specific_index = (unsigned char)(my_context->order_indices_bid[instrument]++) % SPECIFIC_HISTORY_SIZE;
 	my_context->order[(unsigned char)(my_context->worker_data[id].order_index + 1) % HISTORY_SIZE] = 0;
+//	assert(my_context->order_sum[(unsigned char)(my_context->worker_data[id].order_index + 1) % HISTORY_SIZE] == 1);
 	my_context->order_sum[(unsigned char)(my_context->worker_data[id].order_index + 1) % HISTORY_SIZE] = 0;
 	__sync_lock_test_and_set(&my_context->worker_data[id].go,
 	                         1);

@@ -4,8 +4,8 @@
 #include <pthread.h>
 
 #define THREAD_COUNT 2
-#define HISTORY_SIZE 128
-#define SPECIFIC_HISTORY_SIZE 128
+#define HISTORY_SIZE 4
+#define SPECIFIC_HISTORY_SIZE 4
 
 #define spinlock_t pthread_spinlock_t
 
@@ -23,12 +23,12 @@ struct rsj_data {
 	//Helper variables
 	int volBid_i;
 	int priceBid_i;
-        int volAsk_i;
+	int volAsk_i;
 	int priceAsk_i;
 	double equity_i;
-        double f_i;
-        double g_i;
-        double fp_i;
+	double f_i;
+	double g_i;
+	double fp_i;
 	//Result part
 	double fp_global_i;
 };
@@ -60,7 +60,7 @@ struct lookup_bid {
 	int vol_bid;
 	int price_bid;
 	int *data;
-	rsj_double_t history[1280];
+	rsj_double_t history[SPECIFIC_HISTORY_SIZE];
 };
 
 typedef struct lookup_bid lookup_bid_t;
@@ -69,7 +69,7 @@ struct lookup_ask {
 	int vol_ask;
 	int price_ask;
 	int *data;
-	int history[1280];
+	int history[SPECIFIC_HISTORY_SIZE];
 };
 
 typedef struct lookup_ask lookup_ask_t;
@@ -80,16 +80,14 @@ struct context {
 	char global_id;
 	lookup_bid_t bids[INSTRUMENT_COUNT];
 	lookup_ask_t asks[INSTRUMENT_COUNT];
-	pthread_spinlock_t instrument_locks[HISTORY_SIZE];
-	pthread_spinlock_t sum_locks[HISTORY_SIZE];
 	pthread_t worker_threads[THREAD_COUNT];
 	rsj_data_in_t worker_data[INSTRUMENT_COUNT];
 	/* Overflow OK. */
 	char order_index;
 	unsigned char order_indices_bid[INSTRUMENT_COUNT];
-	int order[256];
-	int order_sum[128];
-	double sum_history[128];
+	int order[HISTORY_SIZE];
+	int order_sum[HISTORY_SIZE];
+	double sum_history[HISTORY_SIZE];
 	double *fp_i_history[INSTRUMENT_COUNT];
 };
 
