@@ -404,7 +404,6 @@ void Initialize(context_t *my_context)
 	int ret = pthread_barrier_init(&tmp_barrier, NULL,
 	                               THREAD_COUNT + 1);
 	assert(ret == 0);
-	spinlock_init(&tmp_lock, PTHREAD_PROCESS_SHARED);
 	
 	/* Init worker structures. */
 	for (int i = 0; i < INSTRUMENT_COUNT; i++) {
@@ -473,7 +472,6 @@ void Initialize(context_t *my_context)
 	my_context->order[HISTORY_SIZE - 1] = 1;
 	//todo je potreba order_sum? nestaci order? jsou tam jine informace?
 	my_context->order_sum[HISTORY_SIZE - 1] = 1;
-	my_context->order[128] = 1;
 	
 	dbg_threading("Structures allocated. (context=%p)\n",
 	              my_context);
@@ -522,6 +520,8 @@ void Update(context_t *my_context, int seqNum, int instrument,
 	my_context->order[(unsigned char)(my_context->worker_data[id].order_index + 1) % HISTORY_SIZE] = 0;
 //	assert(my_context->order_sum[(unsigned char)(my_context->worker_data[id].order_index + 1) % HISTORY_SIZE] == 1);
 	my_context->order_sum[(unsigned char)(my_context->worker_data[id].order_index + 1) % HISTORY_SIZE] = 0;
+//	my_context->fp_i_history[instrument][(unsigned char)(my_context->order_indices_bid[instrument] + 1) % SPECIFIC_HISTORY_SIZE] =
+//		my_context->fp_i_history[instrument][(unsigned char)(my_context->order_indices_bid[instrument] - 1) % SPECIFIC_HISTORY_SIZE];
 	__sync_lock_test_and_set(&my_context->worker_data[id].go,
 	                         1);
 //	fprintf(stderr, "Update ID=%d called.\n",
@@ -532,7 +532,7 @@ void Update(context_t *my_context, int seqNum, int instrument,
 void Result(context_t *context,
             int seqNum, double fp_global_i)
 {
-	fprintf(stderr, "Result called: %d, %f\n", seqNum, fp_global_i);
+	fprintf(stderr, "Result called: %d, %.9f\n", seqNum, fp_global_i);
 	if (seqNum == 1000) {
 		context->running = 0;
 	}

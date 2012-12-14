@@ -25,7 +25,7 @@ int tester_load_csv_file(const char *filename, rsj_data_t ***data,
 	rsj_data_t tmp_data;
 	int ret = 0;
 	size_t i = 0;
-	while ((ret = fscanf(f, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f\n",
+	while ((ret = fscanf(f, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%lf,%lf,%lf,%lf,%lf\n",
 	                     &tmp_data.seqNum,
 	                     &tmp_data.instrument,
 	                     &tmp_data.price,
