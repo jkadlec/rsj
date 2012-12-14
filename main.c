@@ -89,10 +89,13 @@ int main(int argc, char **argv)
 	context_t my_context;
 	Initialize(&my_context);
 	/* Start the computation. */
-	do_test(&my_context, data, 18);
+	do_test(&my_context, data, 1000);
 	/* Check the results. */
 	
-	getchar();
+//	getchar();
+	while (__sync_bool_compare_and_swap(&my_context.running, 1, 1)) {
+		;
+	}
 	
 	return 0;
 }

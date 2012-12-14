@@ -4,8 +4,8 @@
 #include <pthread.h>
 
 #define THREAD_COUNT 2
-#define HISTORY_SIZE 4
-#define SPECIFIC_HISTORY_SIZE 4
+#define HISTORY_SIZE 128
+#define SPECIFIC_HISTORY_SIZE 128
 
 #define spinlock_t pthread_spinlock_t
 
