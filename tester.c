@@ -5,6 +5,8 @@
 #include <math.h>
 #include <limits.h>
 
+#include "rb.h"
+
 #include "debug.h"
 #include "error.h"
 #include "tester.h"
@@ -17,6 +19,20 @@ pthread_barrier_t tmp_barrier;
 #define spinlock_init pthread_spin_init
 #define spinlock_lock pthread_spin_lock
 #define spinlock_unlock pthread_spin_unlock
+
+int int_comparison(const void *rb_a, const void *rb_b,
+                   void *rb_param)
+{
+	int a = ((rsj_pair_t *)rb_a)->price_bid;
+	int b = ((rsj_pair_t *)rb_b)->price_bid;
+	if (a > b) {
+		return 1;
+	} else if (a < b) {
+		return -1;
+	} else {
+		return 0;
+	}
+}
 
 void dbg_print_order_indices(const context_t *my_context)
 {
@@ -54,23 +70,25 @@ dbg_threading_exec(
 	}
 	__sync_lock_test_and_set(&(global_context->order[history_index]), 0);
 	dbg_calc("%d:All good, free to go.\n", specific_index);
-	bids->data[price_bid] = vol_bid;
+	rsj_pair_t *pair = malloc(sizeof(rsj_pair_t));
+	assert(pair);
+	pair->price_bid = price_bid;
+	pair->vol_bid = vol_bid;
+	rsj_pair_t *ret = rb_replace(bids->tree, pair);
+	if (ret != NULL) {
+		free(ret);
+	}
 	if (unlikely(vol_bid == 0)) {
 		dbg_calc("Thread with history index=%d: Removing price.\n",
 			specific_index);
+		rsj_pair_t *ret = rb_delete(bids->tree, pair);
+		free(ret);
 		if (price_bid == bids->price_bid) {
 			dbg_calc("Thread with history index=%d: Was best price.\n",
 				specific_index);
-			/* TODO binary nebo tak neco. */
-			size_t index = price_bid;
-			for (size_t i = price_bid - 1;
-			 i != 0 && index == price_bid;
-			 i--) {
-				 if (bids->data[i] != 0) {
-				    index = i;
-				}
-			}
-			if (unlikely(index == price_bid)) {
+			struct rb_traverser trav;
+			rsj_pair_t *new_max = rb_t_last(&trav, bids->tree);
+			if (unlikely(new_max == NULL)) {
 				dbg_calc("No better price.\n");
 				bids->price_bid = 0;
 				bids->vol_bid = 0;
@@ -81,14 +99,18 @@ dbg_threading_exec(
 				         " volume=%d. (used to be %d)\n",
 				         specific_index, index, bids->data[index],
 				         price_bid);
-				bids->price_bid = index;
-				bids->vol_bid = bids->data[index];
-				bids->history[specific_index].price_bid = index;
-				bids->history[specific_index].vol_bid = bids->data[index];
+				bids->price_bid = new_max->price_bid;
+				bids->vol_bid = new_max->vol_bid;
+				bids->history[specific_index].price_bid =
+					new_max->price_bid;
+				bids->history[specific_index].vol_bid =
+					new_max->vol_bid;
 			}
 		} else {
-			bids->history[specific_index].price_bid = bids->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].price_bid;
-			bids->history[specific_index].vol_bid = bids->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].vol_bid;
+			bids->history[specific_index].price_bid =
+				bids->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].price_bid;
+			bids->history[specific_index].vol_bid =
+				bids->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].vol_bid;
 		}
 	} else if (price_bid >= bids->price_bid) {
 		dbg_calc("Thread with history index=%d: new best price=%d (bid).\n",
@@ -133,23 +155,27 @@ void asks_insert(context_t *global_context,
 	}
 	__sync_lock_test_and_set(&global_context->order[history_index], 0);
 	dbg_calc("%d:All good, free to go.\n", specific_index);
-	asks->data[price_ask] = vol_ask;
+	
+	rsj_pair_t *pair = malloc(sizeof(rsj_pair_t));
+	assert(pair);
+	pair->price_bid = price_ask;
+	pair->vol_bid = vol_ask;
+	rsj_pair_t *ret = rb_replace(asks->tree, pair);
+	if (ret != NULL) {
+		free(ret);
+	}
+	
 	if (unlikely(vol_ask == 0)) {
 		dbg_calc("Thread with history index=%d: Removing price.\n",
 		         specific_index);
+		rsj_pair_t *ret = rb_delete(asks->tree, pair);
+		free(ret);
 		if (price_ask == asks->price_ask) {
 			dbg_calc("Thread with history index=%d: Was best price.\n",
 			         specific_index);
-			/* TODO binary nebo tak neco. */
-			size_t index = price_ask;
-			for (size_t i = price_ask + 1;
-			     i < 100 && index == price_ask;
-			     i++) {
-				if (asks->data[i] != 0) {
-					index = i;
-				}
-			}
-			if (unlikely(index == price_ask)) {
+                        struct rb_traverser trav;
+                        rsj_pair_t *new_min = rb_t_first(&trav, asks->tree);
+			if (unlikely(new_min == NULL)) {
 				dbg_calc("No better price.\n");
 				asks->price_ask = INT_MAX;
 				asks->vol_ask = 0;
@@ -157,9 +183,9 @@ void asks_insert(context_t *global_context,
 			} else {
 				dbg_calc("Thread with history index=%d: New best price=%d, volume=%d.\n",
 				         specific_index, index, asks->data[index]);
-				asks->price_ask = index;
-				asks->vol_ask = asks->data[index];
-				asks->history[specific_index] = asks->data[index];
+				asks->price_ask = new_min->price_bid;
+				asks->vol_ask = new_min->vol_bid;
+				asks->history[specific_index] = new_min->vol_bid;
 			}
 		} else {
 			asks->history[specific_index] =
@@ -439,21 +465,14 @@ void Initialize(context_t *my_context)
 	
 	/* Init lookup structures. */
 	for (int i = 0; i < INSTRUMENT_COUNT; i++) {
-		//toto bude fungovat, ale bidy potrebujou vic dat nez asky
-		my_context->asks[i].data =
-			malloc(200 * sizeof(int));
-		assert(my_context->asks[i].data);
-		for (int j = 0; j < 200 ; j++) {
-			my_context->asks[i].data[j] = 0;
-		}
+		my_context->asks[i].tree = rb_create(int_comparison, NULL,
+		                                     &rb_allocator_default);
+		assert(my_context->asks[i].tree);
 		my_context->asks[i].vol_ask = 0;
 		my_context->asks[i].price_ask = INT_MAX;
-		my_context->bids[i].data =
-			malloc(200 * sizeof(int));
-		assert(my_context->bids[i].data);
-                for (int j = 0; j < 200; j++) {
-                    my_context->bids[i].data[j] = 0;
-                }
+		my_context->bids[i].tree = rb_create(int_comparison, NULL,
+		                                     &rb_allocator_default);
+		assert(my_context->bids[i].tree);
 		for (int j = 0; j < HISTORY_SIZE; j++) {
 			my_context->bids[i].history[j].price_bid = 0;
 			my_context->bids[i].history[j].vol_bid = 0;

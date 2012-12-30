@@ -7,7 +7,8 @@ SOURCES += \
     main.c \
     tester.c \
     calculation.c \
-    worker.c
+    worker.c \
+    rb.c
 
 HEADERS += \
     tester.h \
@@ -15,5 +16,6 @@ HEADERS += \
     debug.h \
     structures.h \
     calculation.h \
-    error.h
+    error.h \
+    rb.h
 

@@ -3,7 +3,9 @@
 
 #include <pthread.h>
 
-#define THREAD_COUNT 2
+#include "rb.h"
+
+#define THREAD_COUNT 1
 #define HISTORY_SIZE 4
 #define SPECIFIC_HISTORY_SIZE 4
 
@@ -49,18 +51,18 @@ struct rsj_data_in {
 
 typedef struct rsj_data_in rsj_data_in_t;
 
-struct rsj_double {
+struct rsj_pair {
 	int vol_bid;
 	int price_bid;
 };
 
-typedef struct rsj_double rsj_double_t;
+typedef struct rsj_pair rsj_pair_t;
 
 struct lookup_bid {
 	int vol_bid;
 	int price_bid;
-	int *data;
-	rsj_double_t history[SPECIFIC_HISTORY_SIZE];
+	rb_table_t *tree;
+	rsj_pair_t history[SPECIFIC_HISTORY_SIZE];
 };
 
 typedef struct lookup_bid lookup_bid_t;
@@ -69,6 +71,7 @@ struct lookup_ask {
 	int vol_ask;
 	int price_ask;
 	int *data;
+	rb_table_t *tree;
 	int history[SPECIFIC_HISTORY_SIZE];
 };
 
