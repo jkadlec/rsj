@@ -265,6 +265,8 @@ void *worker_start(void *data)
 				global_context->worker_data[id]->specific_index;
 			assert(order_index < HISTORY_SIZE);
 			assert(specific_index < SPECIFIC_HISTORY_SIZE);
+			global_context->order[(unsigned char)(global_context->worker_data[id]->order_index + 1) % HISTORY_SIZE] = 0;
+			global_context->order_sum[(unsigned char)(global_context->worker_data[id]->order_index + 1) % HISTORY_SIZE] = 0;
 //			sequence testing
 //			printf("seqNum=%d index=%d, waiting for previous calc to be completed=%d\n",
 //			       seqNum,
@@ -356,8 +358,6 @@ dbg_calc_exec(
 				         id, seqNum, instrument, order_index, order_index - 1, global_context->sum_history[order_index],
 				       global_context->fp_i_history[instrument][(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE]);
 				__sync_lock_test_and_set(&global_context->order_sum[order_index], 1);	
-				global_context->order[(unsigned char)(order_index + 1) % HISTORY_SIZE] = 0;
-				global_context->order_sum[(unsigned char)(order_index + 1) % HISTORY_SIZE] = 0;
 				continue;
 			}
 			
@@ -412,8 +412,6 @@ dbg_calc_exec(
 			dbg_threading("%d: seqNum=%d index=%d Unlocking sums.\n",
 			id, seqNum, order_index);
 			__sync_lock_test_and_set(&global_context->order_sum[order_index], 1);
-			global_context->order[(unsigned char)(order_index + 1) % HISTORY_SIZE] = 0;
-			global_context->order_sum[(unsigned char)(order_index + 1) % HISTORY_SIZE] = 0;
 			/* Work done. */
 	}
 	
