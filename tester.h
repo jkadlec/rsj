@@ -18,6 +18,6 @@ void Initialize(context_t *my_context);
 void Update(context_t *context,
             int seqNum, int instrument, int price, int volume, int side);
 void Result(context_t *context,
-            int seqNum, double fp_global_i);
+            int seqNum, double fp_global_i, int index);
 
 #endif // TESTER_H

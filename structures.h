@@ -6,9 +6,11 @@
 #include <ck_ring.h>
 #include "rb.h"
 
-#define THREAD_COUNT 2
+#define THREAD_COUNT 1
 #define HISTORY_SIZE 16
 #define SPECIFIC_HISTORY_SIZE 16
+
+#define MEASURE_TIME
 
 #define spinlock_t pthread_spinlock_t
 
@@ -85,7 +87,7 @@ struct context {
 	pthread_t worker_threads[THREAD_COUNT];
 	rsj_data_in_t *worker_data[INSTRUMENT_COUNT];
 	/* Overflow OK. */
-	char order_index;
+	unsigned char order_index;
 	unsigned char order_indices_bid[INSTRUMENT_COUNT];
 	int order[HISTORY_SIZE];
 	int order_sum[HISTORY_SIZE];

@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <math.h>
 #include <limits.h>
+#include <signal.h>
 
 #include <ck_ring.h>
 #include "rb.h"
@@ -336,7 +337,7 @@ dbg_calc_exec(
 			int volask = global_context->asks[instrument].history[specific_index];
 			if (unlikely(volask == 0 || volbid == 0 || pricebid == 0)) {
 				/* Sum history unchanged. */
-				Result(global_context, seqNum, 0.0);
+				Result(global_context, seqNum, 0.0, order_index);
 				dbg_calc("Thread=%d returning 0 for seqNum=%d - not enough data (%d %d %d).\n",
 				         id, seqNum, pricebid, volbid, volask);
 				dbg_calc("Thread=%d seqNum=%d index=%d. Waiting for history unlock by index=%d.\n",
@@ -397,7 +398,7 @@ dbg_calc_exec(
 			}
 			dbg_calc("Thread %d: seqNum=%d Instrument=%d: %f/%f\n",
 			       id, seqNum, instrument, fp_i, sum);
-			Result(global_context, seqNum, res);//compute_fp_global(global_context->fp_sums,
+			Result(global_context, seqNum, res, order_index);//compute_fp_global(global_context->fp_sums,
 			dbg_calc("%d: seqNum=%d History=%d Deducting from sum=%f\n", id, seqNum, specific_index, global_context->fp_i_history[instrument][(unsigned char)(specific_index -1) % HISTORY_SIZE]);
 			global_context->sum_history[order_index] = sum;
 			dbg_calc("%d: seqNum=%d History=%d Adding to sum=%f\n",
@@ -494,8 +495,8 @@ void Initialize(context_t *my_context)
 	my_context->order_sum[HISTORY_SIZE - 1] = 1;
 	
 	my_context->buffer = (ck_ring_t *)malloc(sizeof(ck_ring_t));
-	void *data_buffer = malloc(40960);
-	ck_ring_init(my_context->buffer, data_buffer, 4096);
+	void *data_buffer = malloc(4096);
+	ck_ring_init(my_context->buffer, data_buffer, 4);
 	
 	dbg_threading("Structures allocated. (context=%p)\n",
 	              my_context);
@@ -503,47 +504,64 @@ void Initialize(context_t *my_context)
 	pthread_barrier_wait(&tmp_barrier);
 }
 
+struct timespec times[HISTORY_SIZE];
+
 void Update(context_t *my_context, int seqNum, int instrument,
             int price, int volume, int side)
 {
-	char index = (unsigned char)(my_context->order_index) % HISTORY_SIZE;
-	/* Find available thread to give work to. Blocks if all threads are full, at least for now. */
-//	dbg_calc("Getting free thread ID.\n");
+	struct timespec time;
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time);
 	rsj_data_in_t *data = (rsj_data_in_t *)malloc(sizeof(rsj_data_in_t));
 	
-	/* Fill thread's data. Computation will start automatically. */
 	data->seqNum = seqNum;
 	data->instrument = instrument;
 	data->side = side;
 	data->volume = volume;
 	data->price = price;
 	data->order_index = (unsigned char)(my_context->order_index++) % HISTORY_SIZE;
-	//todo bitove pole
+	
 	data->specific_index = (unsigned char)(my_context->order_indices_bid[instrument]++) % SPECIFIC_HISTORY_SIZE;
-//	my_context->order[(unsigned char)(data->order_index + 1) % HISTORY_SIZE] = 0;
-//	my_context->order_sum[(unsigned char)(data->order_index + 1) % HISTORY_SIZE] = 0;
-//	assert(my_context->order_sum[(unsigned char)(my_context->worker_data[id].order_index + 1) % HISTORY_SIZE] == 1);
 	while (!ck_ring_enqueue_spmc(my_context->buffer, (void *)data)) {
 		;
 	}
+	times[data->order_index] = time;
 	dbg_ring("Enqueued seqNum=%d\n", seqNum);
-//	my_context->fp_i_history[instrument][(unsigned char)(my_context->order_indices_bid[instrument] + 1) % SPECIFIC_HISTORY_SIZE] =
-//		my_context->fp_i_history[instrument][(unsigned char)(my_context->order_indices_bid[instrument] - 1) % SPECIFIC_HISTORY_SIZE];
-//	fprintf(stderr, "Update ID=%d called.\n",
-//	         seqNum);
-}
-
-
-void Result(context_t *context,
-            int seqNum, double fp_global_i)
-{
-	fprintf(stderr, "Result called: %d, %.9f\n", seqNum, fp_global_i);
-	if (seqNum == 1000) {
-		context->running = 0;
-	}
 }
 
 void Destructor(context_t *context)
 {
+	for (int i = 0; i < THREAD_COUNT; i++) {
+		pthread_kill(context->worker_threads[i], 3);
+	}
 	context->running = 0;
+}
+
+struct timespec timespec_diff(struct timespec start, struct timespec end)
+{
+	timespec temp;
+	if ((end.tv_nsec-start.tv_nsec)<0) {
+		temp.tv_sec = end.tv_sec-start.tv_sec-1;
+		temp.tv_nsec = 1000000000+end.tv_nsec-start.tv_nsec;
+	} else {
+		temp.tv_sec = end.tv_sec-start.tv_sec;
+		temp.tv_nsec = end.tv_nsec-start.tv_nsec;
+	}
+	return temp;
+}
+
+void Result(context_t *context,
+            int seqNum, double fp_global_i, int index)
+{
+	printf("%d\n", sizeof(context_t));
+	getchar();
+	unsigned int nano = 0;
+	struct timespec time;
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time);
+	struct timespec diff = timespec_diff(times[index], time);
+	nano = diff.tv_nsec;
+	fprintf(stderr, "Result called: %d, %.9f (%d)\n", seqNum, fp_global_i,
+	        nano);
+	if (seqNum == 1000) {
+		Destructor(context);
+	}
 }
