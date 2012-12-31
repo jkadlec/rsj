@@ -98,7 +98,7 @@ dbg_threading_exec(
 			} else {
 				dbg_calc("Thread with history index=%d: New best price=%d,"
 				         " volume=%d. (used to be %d)\n",
-				         specific_index, index, bids->data[index],
+				         specific_index, index, new_max->vol_bid,
 				         price_bid);
 				bids->price_bid = new_max->price_bid;
 				bids->vol_bid = new_max->vol_bid;
@@ -183,7 +183,7 @@ void asks_insert(context_t *global_context,
 				asks->history[specific_index] = 0;
 			} else {
 				dbg_calc("Thread with history index=%d: New best price=%d, volume=%d.\n",
-				         specific_index, index, asks->data[index]);
+				         specific_index, index, new_min->vol_bid);
 				asks->price_ask = new_min->price_bid;
 				asks->vol_ask = new_min->vol_bid;
 				asks->history[specific_index] = new_min->vol_bid;
@@ -242,24 +242,27 @@ void *worker_start(void *data)
 	/* While computation not done */
 	while (global_context->running) {
 		/* Wait for work. */
-		if (__sync_bool_compare_and_swap(&(global_context->worker_data[id].go), 1, 1)) {
-			dbg_threading("Thread=%d starting computation with seqNum=%d.\n",
-			              id, global_context->worker_data[id].seqNum);
+		while(!ck_ring_dequeue_spmc(global_context->buffer,
+		                           (void *)(&global_context->worker_data[id]))) {
+			;
+		}
+			dbg_ring("dequeded seqNum=%d\n",
+			         global_context->worker_data[id]->seqNum);
 			/* Get work. */
 			int instrument =
-				global_context->worker_data[id].instrument;
+				global_context->worker_data[id]->instrument;
 			int seqNum =
-				global_context->worker_data[id].seqNum;
+				global_context->worker_data[id]->seqNum;
 			int price =
-				global_context->worker_data[id].price;
+				global_context->worker_data[id]->price;
 			int side =
-				global_context->worker_data[id].side;
+				global_context->worker_data[id]->side;
 			int volume =
-				global_context->worker_data[id].volume;
+				global_context->worker_data[id]->volume;
 			int order_index =
-				global_context->worker_data[id].order_index;
+				global_context->worker_data[id]->order_index;
 			int specific_index =
-				global_context->worker_data[id].specific_index;
+				global_context->worker_data[id]->specific_index;
 			assert(order_index < HISTORY_SIZE);
 			assert(specific_index < SPECIFIC_HISTORY_SIZE);
 //			sequence testing
@@ -352,9 +355,9 @@ dbg_calc_exec(
 				dbg_calc("Thread=%d seqNum=%d Instrument=%d Index=%d reusing sum history (from history=%d sum=%f (deducted=%f)).\n",
 				         id, seqNum, instrument, order_index, order_index - 1, global_context->sum_history[order_index],
 				       global_context->fp_i_history[instrument][(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE]);
-				__sync_lock_test_and_set(&global_context->order_sum[order_index], 1);
-				__sync_lock_test_and_set(&global_context->worker_data[id].go,
-				                         0);
+				__sync_lock_test_and_set(&global_context->order_sum[order_index], 1);	
+				global_context->order[(unsigned char)(order_index + 1) % HISTORY_SIZE] = 0;
+				global_context->order_sum[(unsigned char)(order_index + 1) % HISTORY_SIZE] = 0;
 				continue;
 			}
 			
@@ -409,10 +412,9 @@ dbg_calc_exec(
 			dbg_threading("%d: seqNum=%d index=%d Unlocking sums.\n",
 			id, seqNum, order_index);
 			__sync_lock_test_and_set(&global_context->order_sum[order_index], 1);
+			global_context->order[(unsigned char)(order_index + 1) % HISTORY_SIZE] = 0;
+			global_context->order_sum[(unsigned char)(order_index + 1) % HISTORY_SIZE] = 0;
 			/* Work done. */
-			__sync_lock_test_and_set(&global_context->worker_data[id].go,
-			                         0);
-		}
 	}
 	
 	dbg_threading("Thread=%d DONE.\n", id);
@@ -434,14 +436,14 @@ void Initialize(context_t *my_context)
 	
 	/* Init worker structures. */
 	for (int i = 0; i < INSTRUMENT_COUNT; i++) {
-		my_context->worker_data[i].go = 0;
-		my_context->worker_data[i].instrument = 0;
-		my_context->worker_data[i].order_index = 0;
-		my_context->worker_data[i].price = 0;
-		my_context->worker_data[i].seqNum = 0;
-		my_context->worker_data[i].side = 0;
-		my_context->worker_data[i].specific_index = 0;
-		my_context->worker_data[i].volume = 0;
+		my_context->worker_data[i] = (rsj_data_in_t *)malloc(sizeof(rsj_data_in_t));
+		my_context->worker_data[i]->instrument = 0;
+		my_context->worker_data[i]->order_index = 0;
+		my_context->worker_data[i]->price = 0;
+		my_context->worker_data[i]->seqNum = 0;
+		my_context->worker_data[i]->side = 0;
+		my_context->worker_data[i]->specific_index = 0;
+		my_context->worker_data[i]->volume = 0;
 	}
 	
 	/* Init spinlocks. */
@@ -494,26 +496,13 @@ void Initialize(context_t *my_context)
 	my_context->order_sum[HISTORY_SIZE - 1] = 1;
 	
 	my_context->buffer = (ck_ring_t *)malloc(sizeof(ck_ring_t));
-	void *data_buffer = malloc(4096);
-//	ck_ring_init(NULL, data_buffer, 4096);
+	void *data_buffer = malloc(40960);
+	ck_ring_init(my_context->buffer, data_buffer, 4096);
 	
 	dbg_threading("Structures allocated. (context=%p)\n",
 	              my_context);
 	
 	pthread_barrier_wait(&tmp_barrier);
-}
-
-int pool_return_free_thread_id(rsj_data_in_t *worker_data)
-{
-	while (1) {
-		for (int i = 0; i < THREAD_COUNT; i++) {
-			if (worker_data[i].go == 0) {
-				return i;
-			}
-		}
-	}
-	
-	return -1;
 }
 
 void Update(context_t *my_context, int seqNum, int instrument,
@@ -522,32 +511,26 @@ void Update(context_t *my_context, int seqNum, int instrument,
 	char index = (unsigned char)(my_context->order_index) % HISTORY_SIZE;
 	/* Find available thread to give work to. Blocks if all threads are full, at least for now. */
 //	dbg_calc("Getting free thread ID.\n");
-	int id = -1;
-	while (id < 0) {
-		for (int i = 0; i < THREAD_COUNT; i++) {
-			if (__sync_bool_compare_and_swap(&my_context->worker_data[i].go,
-			                                0, 0)) {
-				id = i;
-			}
-		}
-	}
+	rsj_data_in_t *data = (rsj_data_in_t *)malloc(sizeof(rsj_data_in_t));
 	
 	/* Fill thread's data. Computation will start automatically. */
-	my_context->worker_data[id].seqNum = seqNum;
-	my_context->worker_data[id].instrument = instrument;
-	my_context->worker_data[id].side = side;
-	my_context->worker_data[id].volume = volume;
-	my_context->worker_data[id].price = price;
-	my_context->worker_data[id].order_index = (unsigned char)(my_context->order_index++) % HISTORY_SIZE;
+	data->seqNum = seqNum;
+	data->instrument = instrument;
+	data->side = side;
+	data->volume = volume;
+	data->price = price;
+	data->order_index = (unsigned char)(my_context->order_index++) % HISTORY_SIZE;
 	//todo bitove pole
-	my_context->worker_data[id].specific_index = (unsigned char)(my_context->order_indices_bid[instrument]++) % SPECIFIC_HISTORY_SIZE;
-	my_context->order[(unsigned char)(my_context->worker_data[id].order_index + 1) % HISTORY_SIZE] = 0;
+	data->specific_index = (unsigned char)(my_context->order_indices_bid[instrument]++) % SPECIFIC_HISTORY_SIZE;
+//	my_context->order[(unsigned char)(data->order_index + 1) % HISTORY_SIZE] = 0;
+//	my_context->order_sum[(unsigned char)(data->order_index + 1) % HISTORY_SIZE] = 0;
 //	assert(my_context->order_sum[(unsigned char)(my_context->worker_data[id].order_index + 1) % HISTORY_SIZE] == 1);
-	my_context->order_sum[(unsigned char)(my_context->worker_data[id].order_index + 1) % HISTORY_SIZE] = 0;
+	while (!ck_ring_enqueue_spmc(my_context->buffer, (void *)data)) {
+		;
+	}
+	dbg_ring("Enqueued seqNum=%d\n", seqNum);
 //	my_context->fp_i_history[instrument][(unsigned char)(my_context->order_indices_bid[instrument] + 1) % SPECIFIC_HISTORY_SIZE] =
 //		my_context->fp_i_history[instrument][(unsigned char)(my_context->order_indices_bid[instrument] - 1) % SPECIFIC_HISTORY_SIZE];
-	__sync_lock_test_and_set(&my_context->worker_data[id].go,
-	                         1);
 //	fprintf(stderr, "Update ID=%d called.\n",
 //	         seqNum);
 }

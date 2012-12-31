@@ -6,9 +6,9 @@
 #include <ck_ring.h>
 #include "rb.h"
 
-#define THREAD_COUNT 1
-#define HISTORY_SIZE 4
-#define SPECIFIC_HISTORY_SIZE 4
+#define THREAD_COUNT 2
+#define HISTORY_SIZE 16
+#define SPECIFIC_HISTORY_SIZE 16
 
 #define spinlock_t pthread_spinlock_t
 
@@ -47,7 +47,6 @@ struct rsj_data_in {
 	int side;
 	char order_index;
 	char specific_index;
-	char go;
 };
 
 typedef struct rsj_data_in rsj_data_in_t;
@@ -71,7 +70,6 @@ typedef struct lookup_bid lookup_bid_t;
 struct lookup_ask {
 	int vol_ask;
 	int price_ask;
-	int *data;
 	rb_table_t *tree;
 	int history[SPECIFIC_HISTORY_SIZE];
 };
@@ -85,7 +83,7 @@ struct context {
 	lookup_bid_t bids[INSTRUMENT_COUNT];
 	lookup_ask_t asks[INSTRUMENT_COUNT];
 	pthread_t worker_threads[THREAD_COUNT];
-	rsj_data_in_t worker_data[INSTRUMENT_COUNT];
+	rsj_data_in_t *worker_data[INSTRUMENT_COUNT];
 	/* Overflow OK. */
 	char order_index;
 	unsigned char order_indices_bid[INSTRUMENT_COUNT];
