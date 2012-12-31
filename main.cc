@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "scheduler.h"
 #include "tester.h"
 #include "structures.h"
 #include "debug.h"
@@ -18,7 +17,7 @@ int tester_load_csv_file(const char *filename, rsj_data_t ***data,
 	dbg_test("Loading file=%s\n",
 	         filename);
 	
-	*data = malloc(102400);
+	*data = (rsj_data_t **)malloc(102400);
 	assert(data);
 	
 	/* Read line by line. */
@@ -40,7 +39,7 @@ int tester_load_csv_file(const char *filename, rsj_data_t ***data,
 	                     &tmp_data.g_i,
 	                     &tmp_data.fp_i,
 	                     &tmp_data.fp_global_i)) == 14) {
-		(*data)[i] = malloc(sizeof(rsj_data_t));
+		(*data)[i] = (rsj_data_t *)malloc(sizeof(rsj_data_t));
 		assert((*data)[i]);
 		(*data)[i]->seqNum = tmp_data.seqNum;
 		(*data)[i]->instrument = tmp_data.instrument;

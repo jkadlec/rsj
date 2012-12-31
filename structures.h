@@ -3,6 +3,7 @@
 
 #include <pthread.h>
 
+#include <ck_ring.h>
 #include "rb.h"
 
 #define THREAD_COUNT 1
@@ -92,6 +93,7 @@ struct context {
 	int order_sum[HISTORY_SIZE];
 	double sum_history[HISTORY_SIZE];
 	double *fp_i_history[INSTRUMENT_COUNT];
+	ck_ring_t *buffer;
 };
 
 typedef struct context context_t;

@@ -26,7 +26,9 @@
 #ifndef RB_H
 #define RB_H 1
 
-#include <stddef.h>
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 /* Function types. */
 typedef int rb_comparison_func (const void *rb_a, const void *rb_b,
@@ -120,5 +122,9 @@ void *rb_t_next (struct rb_traverser *);
 void *rb_t_prev (struct rb_traverser *);
 void *rb_t_cur (struct rb_traverser *);
 void *rb_t_replace (struct rb_traverser *, void *);
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif /* rb.h */

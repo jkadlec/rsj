@@ -575,9 +575,9 @@ rb_t_insert (struct rb_traverser *trav, struct rb_table *tree, void *item)
   if (p != NULL)
     {
       trav->rb_table = tree;
-      trav->rb_node =
-        ((struct rb_node *)
-         ((char *) p - offsetof (struct rb_node, rb_data)));
+      trav->rb_node = NULL;
+      //Would not compile, not needed anyway
+//        ((struct rb_node *)((char *) p - offsetof (struct rb_node, rb_data)));
       trav->rb_generation = tree->rb_generation - 1;
       return *p;
     }

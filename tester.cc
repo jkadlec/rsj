@@ -5,6 +5,7 @@
 #include <math.h>
 #include <limits.h>
 
+#include <ck_ring.h>
 #include "rb.h"
 
 #include "debug.h"
@@ -70,24 +71,24 @@ dbg_threading_exec(
 	}
 	__sync_lock_test_and_set(&(global_context->order[history_index]), 0);
 	dbg_calc("%d:All good, free to go.\n", specific_index);
-	rsj_pair_t *pair = malloc(sizeof(rsj_pair_t));
+	rsj_pair_t *pair = (rsj_pair_t *)malloc(sizeof(rsj_pair_t));
 	assert(pair);
 	pair->price_bid = price_bid;
 	pair->vol_bid = vol_bid;
-	rsj_pair_t *ret = rb_replace(bids->tree, pair);
+	rsj_pair_t *ret = (rsj_pair_t *)rb_replace(bids->tree, pair);
 	if (ret != NULL) {
 		free(ret);
 	}
 	if (unlikely(vol_bid == 0)) {
 		dbg_calc("Thread with history index=%d: Removing price.\n",
 			specific_index);
-		rsj_pair_t *ret = rb_delete(bids->tree, pair);
+		rsj_pair_t *ret = (rsj_pair_t *)rb_delete(bids->tree, pair);
 		free(ret);
 		if (price_bid == bids->price_bid) {
 			dbg_calc("Thread with history index=%d: Was best price.\n",
 				specific_index);
 			struct rb_traverser trav;
-			rsj_pair_t *new_max = rb_t_last(&trav, bids->tree);
+			rsj_pair_t *new_max = (rsj_pair_t *)rb_t_last(&trav, bids->tree);
 			if (unlikely(new_max == NULL)) {
 				dbg_calc("No better price.\n");
 				bids->price_bid = 0;
@@ -156,11 +157,11 @@ void asks_insert(context_t *global_context,
 	__sync_lock_test_and_set(&global_context->order[history_index], 0);
 	dbg_calc("%d:All good, free to go.\n", specific_index);
 	
-	rsj_pair_t *pair = malloc(sizeof(rsj_pair_t));
+	rsj_pair_t *pair = (rsj_pair_t *)malloc(sizeof(rsj_pair_t));
 	assert(pair);
 	pair->price_bid = price_ask;
 	pair->vol_bid = vol_ask;
-	rsj_pair_t *ret = rb_replace(asks->tree, pair);
+	rsj_pair_t *ret =(rsj_pair_t *) rb_replace(asks->tree, pair);
 	if (ret != NULL) {
 		free(ret);
 	}
@@ -168,13 +169,13 @@ void asks_insert(context_t *global_context,
 	if (unlikely(vol_ask == 0)) {
 		dbg_calc("Thread with history index=%d: Removing price.\n",
 		         specific_index);
-		rsj_pair_t *ret = rb_delete(asks->tree, pair);
+		rsj_pair_t *ret = (rsj_pair_t *) rb_delete(asks->tree, pair);
 		free(ret);
 		if (price_ask == asks->price_ask) {
 			dbg_calc("Thread with history index=%d: Was best price.\n",
 			         specific_index);
                         struct rb_traverser trav;
-                        rsj_pair_t *new_min = rb_t_first(&trav, asks->tree);
+                        rsj_pair_t *new_min = (rsj_pair_t *) rb_t_first(&trav, asks->tree);
 			if (unlikely(new_min == NULL)) {
 				dbg_calc("No better price.\n");
 				asks->price_ask = INT_MAX;
@@ -447,7 +448,7 @@ void Initialize(context_t *my_context)
 	for (int i = 0; i < INSTRUMENT_COUNT; i++) {
 //		spinlock_init(&(my_context->insert_instrument_lock[i]),
 //		              PTHREAD_PROCESS_SHARED);
-		my_context->fp_i_history[i] = malloc(HISTORY_SIZE * sizeof(double));
+		my_context->fp_i_history[i] = (double *)malloc(HISTORY_SIZE * sizeof(double));
 		for (int j = 0; j < HISTORY_SIZE; j++) {
 			my_context->fp_i_history[i][j] = 0.0;
 		}
@@ -491,6 +492,10 @@ void Initialize(context_t *my_context)
 	my_context->order[HISTORY_SIZE - 1] = 1;
 	//todo je potreba order_sum? nestaci order? jsou tam jine informace?
 	my_context->order_sum[HISTORY_SIZE - 1] = 1;
+	
+	my_context->buffer = (ck_ring_t *)malloc(sizeof(ck_ring_t));
+	void *data_buffer = malloc(4096);
+//	ck_ring_init(NULL, data_buffer, 4096);
 	
 	dbg_threading("Structures allocated. (context=%p)\n",
 	              my_context);

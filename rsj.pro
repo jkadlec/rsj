@@ -3,19 +3,14 @@ CONFIG += console
 CONFIG -= qt
 
 SOURCES += \
-    scheduler.c \
-    main.c \
-    tester.c \
-    calculation.c \
-    worker.c \
+    main.cc \
+    tester.cc \
     rb.c
 
 HEADERS += \
     tester.h \
-    scheduler.h \
     debug.h \
     structures.h \
-    calculation.h \
     error.h \
     rb.h
 
