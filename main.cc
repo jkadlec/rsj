@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "tester.h"
+#include "worker.h"
 #include "structures.h"
 #include "debug.h"
 #include "iupdateprocessor.h"
@@ -67,11 +67,10 @@ int tester_load_csv_file(const char *filename, rsj_data_t ***data,
 }
 
 
-void do_test(rsj_data_t **data, size_t count)
+void do_test(IUpdateProcessor *proc, rsj_data_t **data, size_t count)
 {
 	dbg_test("Testing %d queries.\n",
 	         count);
-	IUpdateProcessor *proc = new IUpdateProcessor();
 	for (int i = 0; i < count; i++) {
 		proc->Update(data[i]->seqNum, data[i]->instrument,
 		             data[i]->price, data[i]->volume, data[i]->side);
@@ -86,16 +85,13 @@ int main(int argc, char **argv)
 	int ret = tester_load_csv_file(argv[1], &data,
 	                               &data_count);
 	assert(ret == 0);
-	/* Feed the data to a testing structure. */
-	initialize_c_style();
+	IUpdateProcessor *proc = new IUpdateProcessor();
+	proc->Initialize(consumer);
+	sleep(1);
 	/* Start the computation. */
-	do_test(data, 1000);
+	do_test(proc, data, 1000);
 	
-//	getchar();
 	sleep(5);
-	while (__sync_bool_compare_and_swap(&global_context->running, 1, 1)) {
-		;
-	}
 	
 	return 0;
 }

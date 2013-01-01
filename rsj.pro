@@ -5,14 +5,18 @@ SOURCES += \
     main.cc \
     rb.c \
     iupdateprocessor.cc \
-    iresultconsumer.cpp \
-    tester.cc
+    init.cc \
+    worker.cc
 
 HEADERS += \
-    tester.h \
     debug.h \
     structures.h \
     rb.h \
     iupdateprocessor.h \
-    iresultconsumer.h
+    iresultconsumer.h \
+    init.h \
+    table.h \
+    worker.h \
+    sync.h \
+    helpers.h
 

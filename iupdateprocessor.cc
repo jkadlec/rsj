@@ -1,6 +1,7 @@
 #include "iupdateprocessor.h"
 #include "structures.h"
-#include "tester.h"
+#include "worker.h"
+#include "init.h"
 
 void IUpdateProcessor::Initialize(IResultConsumer& resultConsumer)
 {

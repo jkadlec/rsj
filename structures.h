@@ -7,7 +7,7 @@
 #include "rb.h"
 #include "iresultconsumer.h"
 
-#define THREAD_COUNT 4
+#define THREAD_COUNT 1
 #define HISTORY_SIZE 8
 #define SPECIFIC_HISTORY_SIZE 8
 
@@ -50,7 +50,7 @@ struct rsj_data_in {
 	int side;
 	unsigned int order_index;
 	unsigned int specific_index;
-	char PAD[64 - (sizeof(int) * 5 + 2)];
+	char PAD[64 - (sizeof(int) * 7)];
 };
 
 typedef struct rsj_data_in rsj_data_in_t;
@@ -82,12 +82,11 @@ typedef struct lookup_ask lookup_ask_t;
 
 struct context {
 	pthread_barrier_t *global_worker_sync;
-	char running;
-	char global_id;
+	int running;
+	int global_id;
 	lookup_bid_t bids[INSTRUMENT_COUNT];
 	lookup_ask_t asks[INSTRUMENT_COUNT];
 	pthread_t worker_threads[THREAD_COUNT];
-	rsj_data_in_t *worker_data[INSTRUMENT_COUNT];
 	/* Overflow OK. */
 	unsigned char order_index;
 	unsigned char order_indices_bid[INSTRUMENT_COUNT];
@@ -102,5 +101,6 @@ typedef struct context context_t;
      
 static context_t *global_context;
 static IResultConsumer consumer;
+static pthread_barrier_t tmp_barrier;
 
 #endif // STRUCTURES_H
