@@ -9,5 +9,7 @@ context_t *global_context = (context_t *)malloc(sizeof(context_t));
 IResultConsumer consumer;
 
 #ifdef MEASURE_TIME
+struct timeval start_time;
 struct timespec times[HISTORY_SIZE];
+size_t loaded;
 #endif

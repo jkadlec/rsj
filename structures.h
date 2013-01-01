@@ -8,14 +8,14 @@
 #include "rb.h"
 #include "iresultconsumer.h"
 
-#define THREAD_COUNT 2
-#define HISTORY_SIZE 8
-#define SPECIFIC_HISTORY_SIZE 8
+#define THREAD_COUNT 1
+#define HISTORY_SIZE 128
+#define SPECIFIC_HISTORY_SIZE 128
 #define BUFFER_SIZE 2
 
 #define MEASURE_TIME
 
-#define TESTING_COUNT 1000
+#define TESTING_COUNT 3000002
 
 enum rsj_consts {
 	INSTRUMENT_COUNT = 20
@@ -90,8 +90,8 @@ struct context {
 	pthread_t worker_threads[THREAD_COUNT];
 	unsigned int order_index;
 	unsigned int order_indices_bid[INSTRUMENT_COUNT];
-	int order[HISTORY_SIZE];
-	int order_sum[HISTORY_SIZE];
+	volatile int order[HISTORY_SIZE];
+	volatile int order_sum[HISTORY_SIZE];
 	double sum_history[HISTORY_SIZE];
 	double *fp_i_history[INSTRUMENT_COUNT];
 	ck_ring_t *buffer;

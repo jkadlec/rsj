@@ -10,7 +10,9 @@ extern context_t *global_context;
 extern IResultConsumer consumer;
 
 #ifdef MEASURE_TIME
+extern timeval start_time;
 extern struct timespec times[HISTORY_SIZE];
+extern size_t loaded;
 #endif
 
 #endif // GLOBALS_H

@@ -5,6 +5,7 @@
 #include <math.h>
 #include <limits.h>
 #include <signal.h>
+#include <sys/time.h>
 
 #include <ck_ring.h>
 #include "rb.h"
@@ -21,7 +22,7 @@
 
 static uint64_t time_sum = 0;
 
-static const int affinity_map[2] = {0, 1};
+static const int affinity_map[15] = {16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23};
 
 void dbg_print_order_indices()
 {
@@ -71,12 +72,9 @@ void result_testing(int seqNum, double fp_global_i, int index)
 	nano = diff.tv_nsec;
 	time_sum += nano;
 #endif
-	fprintf(stderr, "Result called: %d, %.9f (%d)\n", seqNum, fp_global_i,
-	        nano);
-	if (seqNum == TESTING_COUNT) {
-#ifdef MEASURE_TIME
-		printf("MEAN: %llu\n", time_sum / TESTING_COUNT);
-#endif
+//	fprintf(stderr, "Result called: %d, %.9f (%d)\n", seqNum, fp_global_i,
+//	        nano);
+	if (seqNum == 1001) {
 		destructor_c_style();
 	}
 }
@@ -244,8 +242,23 @@ dbg_calc_exec(
 	return NULL;
 }
 
+long timeval_diff(struct timeval *starttime, struct timeval *finishtime)
+{
+	long msec;
+	msec=(finishtime->tv_sec-starttime->tv_sec)*1000;
+	msec+=(finishtime->tv_usec-starttime->tv_usec)/1000;
+	return msec;
+}
+
 void destructor_c_style()
 {
+
+#ifdef MEASURE_TIME
+	struct timeval time;
+	gettimeofday(&time, NULL);
+	long diff = timeval_diff(&start_time, &time);
+	printf("Total=%lu Mean=%llu\n", diff, time_sum/loaded);
+#endif
 	for (int i = 0; i < THREAD_COUNT; i++) {
 		pthread_kill(global_context->worker_threads[i], 2);
 	}

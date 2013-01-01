@@ -4,11 +4,13 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/time.h>
 
 #include "worker.h"
 #include "structures.h"
 #include "debug.h"
 #include "iupdateprocessor.h"
+#include "globals.h"
 
 int tester_load_csv_file(const char *filename, rsj_data_t ***data,
                          size_t *data_count)
@@ -19,7 +21,7 @@ int tester_load_csv_file(const char *filename, rsj_data_t ***data,
 	dbg_test("Loading file=%s\n",
 	         filename);
 	
-	*data = (rsj_data_t **)malloc(102400);
+	*data = (rsj_data_t **)malloc(TESTING_COUNT * sizeof(rsj_data_t **));
 	assert(data);
 	
 	/* Read line by line. */
@@ -57,12 +59,14 @@ int tester_load_csv_file(const char *filename, rsj_data_t ***data,
 		(*data)[i]->fp_i = tmp_data.fp_i;
 		(*data)[i]->g_i = tmp_data.g_i;
 		(*data)[i]->fp_global_i = tmp_data.fp_global_i;
+		if ((*data)[i]->seqNum == 1001) {
+			break;
+		}
 		i++;
 	}
 	
 	*data_count = ++i;
-	dbg_test("Loaded %d queries.\n",
-	         i);
+	loaded = *data_count;
 	return 0;
 }
 
@@ -71,6 +75,7 @@ void do_test(IUpdateProcessor *proc, rsj_data_t **data, size_t count)
 {
 	dbg_test("Testing %d queries.\n",
 	         count);
+	gettimeofday(&start_time, NULL);
 	for (size_t i = 0; i < count; i++) {
 		proc->Update(data[i]->seqNum, data[i]->instrument,
 		             data[i]->price, data[i]->volume, data[i]->side);
@@ -88,9 +93,9 @@ int main(int argc, char **argv)
 	IUpdateProcessor *proc = new IUpdateProcessor();
 	proc->Initialize(consumer);
 	/* Start the computation. */
-	do_test(proc, data, 1000);
+	do_test(proc, data, data_count);
 	
-	sleep(5);
+	sleep(30);
 	
 	return 0;
 }
