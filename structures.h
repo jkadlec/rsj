@@ -9,7 +9,7 @@
 
 #define THREAD_COUNT 4
 #define HISTORY_SIZE 8
-#define SPECIFIC_HISTORY_SIZE 7
+#define SPECIFIC_HISTORY_SIZE 8
 
 #define MEASURE_TIME
 

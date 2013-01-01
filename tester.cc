@@ -25,7 +25,12 @@ pthread_barrier_t tmp_barrier;
 
 inline unsigned int prev_index(unsigned int index)
 {
-	return (unsigned int)(index - 1) % HISTORY_SIZE;
+	return (index - 1) % HISTORY_SIZE;
+}
+
+inline unsigned int next_index(unsigned int index)
+{
+	return (index + 1) % HISTORY_SIZE;
 }
 
 inline unsigned int prev_index_spec(unsigned int index)
@@ -286,6 +291,7 @@ void *worker_start(void *data)
 		                           (void *)(&global_context->worker_data[id]))) {
 			;
 		}
+                		
 			dbg_ring("dequeded seqNum=%d\n",
 			         global_context->worker_data[id]->seqNum);
 			/* Get work. */
@@ -305,11 +311,8 @@ void *worker_start(void *data)
 				global_context->worker_data[id]->specific_index;
 			assert(order_index < HISTORY_SIZE);
 			assert(specific_index < SPECIFIC_HISTORY_SIZE);
-			global_context->order[(global_context->worker_data[id]->order_index + 1) % HISTORY_SIZE] = 0;
-//			__sync_lock_test_and_set(&(global_context->order[order_index]), 1);
-//			__sync_lock_test_and_set(&global_context->worker_data[id].go,
-//			                         0);
-//			continue;
+//			global_context->order[(global_context->worker_data[id]->order_index + 1) % HISTORY_SIZE] = 0;
+			sync_unset_order(next_index(order_index));
 dbg_calc_exec(
 		dbg_calc("seqNum=%d history=%d Sums: ",
 		       seqNum, order_index);

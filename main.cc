@@ -89,7 +89,7 @@ int main(int argc, char **argv)
 	/* Feed the data to a testing structure. */
 	initialize_c_style();
 	/* Start the computation. */
-	do_test(data, 10);
+	do_test(data, 1000);
 	
 //	getchar();
 	sleep(5);
