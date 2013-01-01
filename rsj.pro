@@ -1,16 +1,18 @@
 TEMPLATE = app
 CONFIG += console
-CONFIG -= qt
 
 SOURCES += \
     main.cc \
-    tester.cc \
-    rb.c
+    rb.c \
+    iupdateprocessor.cc \
+    iresultconsumer.cpp \
+    tester.cc
 
 HEADERS += \
     tester.h \
     debug.h \
     structures.h \
-    error.h \
-    rb.h
+    rb.h \
+    iupdateprocessor.h \
+    iresultconsumer.h
 

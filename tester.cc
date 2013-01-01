@@ -13,6 +13,7 @@
 #include "error.h"
 #include "tester.h"
 #include "structures.h"
+#include "iresultconsumer.h"
 
 pthread_barrier_t tmp_barrier;
 
@@ -21,6 +22,52 @@ pthread_barrier_t tmp_barrier;
 #define spinlock_init pthread_spin_init
 #define spinlock_lock pthread_spin_lock
 #define spinlock_unlock pthread_spin_unlock
+
+inline unsigned int prev_index(unsigned int index)
+{
+	return (unsigned int)(index - 1) % HISTORY_SIZE;
+}
+
+inline unsigned int prev_index_spec(unsigned int index)
+{
+	return (unsigned int)(index - 1) % SPECIFIC_HISTORY_SIZE;
+}
+
+inline void wait_until_set_order(unsigned int index)
+{
+	while (__sync_bool_compare_and_swap(&(global_context->order[index]),
+	                                    0, 0)) {
+		;
+        }
+}
+
+inline void wait_until_set_order_sum(unsigned int index)
+{
+	while (__sync_bool_compare_and_swap(&(global_context->order_sum[index]),
+	                                    0, 0)) {
+		;
+        }
+}
+
+inline void sync_set_order(unsigned int index)
+{
+	__sync_lock_test_and_set(&(global_context->order[index]), 1);
+}
+
+inline void sync_unset_order(unsigned int index)
+{
+	__sync_lock_test_and_set(&(global_context->order[index]), 0);
+}
+
+inline void sync_set_order_sum(unsigned int index)
+{
+	__sync_lock_test_and_set(&(global_context->order_sum[index]), 1);
+}
+
+inline void sync_unset_order_sum(unsigned int index)
+{
+	__sync_lock_test_and_set(&(global_context->order_sum[index]), 0);
+}
 
 int int_comparison(const void *rb_a, const void *rb_b,
                    void *rb_param)
@@ -36,28 +83,27 @@ int int_comparison(const void *rb_a, const void *rb_b,
 	}
 }
 
-void dbg_print_order_indices(const context_t *my_context)
+void dbg_print_order_indices()
 {
 dbg_threading_exec(
 	dbg_threading("Order:\n");
 	for (int i = 0; i < HISTORY_SIZE; i++) {
-		dbg_threading("%d=%d ", i, my_context->order[i]);
+		dbg_threading("%d=%d ", i, global_context->order[i]);
 	}
 	dbg_threading("\n");
 );
 }
 
-static void bids_insert(context_t *global_context,
-                        lookup_bid_t *bids,
-                        spinlock_t *instrument_lock,
-                        int history_index, int specific_index,
+static void bids_insert(lookup_bid_t *bids,
+                        unsigned int history_index, unsigned int specific_index,
                         int vol_bid, int price_bid)
 {
 	dbg_calc("Thread with history index=%d: Inserting bid, volBid=%d,"
 	         "priceBid=%d\n",
 	         specific_index, vol_bid, price_bid);
 	/* Wait until previous data is inserted. */
-	unsigned char index = (unsigned char)(history_index - 1) % HISTORY_SIZE;
+	unsigned int index = prev_index(history_index);
+	dbg_calc("From %d to %d\n", history_index, index);
 dbg_threading_exec(
 	dbg_threading("Order:\n");
 	for (int i = 0; i < HISTORY_SIZE; i++) {
@@ -67,10 +113,8 @@ dbg_threading_exec(
 );
 	dbg_calc("%d:Waiting for thread with order=%d to finish with adding.\n",
 	         specific_index, index);
-	while (__sync_bool_compare_and_swap(&(global_context->order[index]), 0, 0)) {
-		;
-	}
-	__sync_lock_test_and_set(&(global_context->order[history_index]), 0);
+	wait_until_set_order(index);
+	sync_unset_order(history_index);
 	dbg_calc("%d:All good, free to go.\n", specific_index);
 	rsj_pair_t *pair = (rsj_pair_t *)malloc(sizeof(rsj_pair_t));
 	assert(pair);
@@ -110,9 +154,9 @@ dbg_threading_exec(
 			}
 		} else {
 			bids->history[specific_index].price_bid =
-				bids->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].price_bid;
+				bids->history[prev_index_spec(specific_index)].price_bid;
 			bids->history[specific_index].vol_bid =
-				bids->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].vol_bid;
+				bids->history[prev_index_spec(specific_index)].vol_bid;
 		}
 	} else if (price_bid >= bids->price_bid) {
 		dbg_calc("Thread with history index=%d: new best price=%d (bid).\n",
@@ -125,12 +169,12 @@ dbg_threading_exec(
 		dbg_calc("Thread with history index=%d: No change, using old values (bid).\n",
 		         specific_index);
 		/* Nothing changed - we need to use the last value. */
-		bids->history[specific_index].price_bid = bids->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].price_bid;
-		bids->history[specific_index].vol_bid = bids->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].vol_bid;
+		bids->history[specific_index].price_bid = bids->history[prev_index_spec(specific_index)].price_bid;
+		bids->history[specific_index].vol_bid = bids->history[prev_index_spec(specific_index)].vol_bid;
 	}
 	
 	/* Tell other threads that this thread is done with insertion. */
-	__sync_lock_test_and_set(&(global_context->order[history_index]), 1);
+	sync_set_order(history_index);
 	dbg_threading("Order=%d unlocked.\n", history_index);
 	dbg_calc("Thread with history index=%d: Price after insert=%d, volume=%d\n",
 	         history_index,
@@ -138,24 +182,20 @@ dbg_threading_exec(
 	         bids->history[specific_index].vol_bid);
 }
 
-void asks_insert(context_t *global_context,
-                 lookup_ask_t *asks,
-                 spinlock_t *instrument_lock,
-                 int history_index, int specific_index,
+void asks_insert(lookup_ask_t *asks,
+                 unsigned int history_index, unsigned int specific_index,
                  int vol_ask, int price_ask)
 {
 	dbg_calc("Thread with history index=%d: Inserting ask, volAsk=%d,"
 	         "priceAsk=%d (current best = %d %d)\n",
 	          specific_index, vol_ask, price_ask, asks->price_ask, 
 	         asks->vol_ask);
-	dbg_print_order_indices(global_context);
-	unsigned char index = (unsigned char)(history_index - 1) % HISTORY_SIZE;
+	dbg_print_order_indices();
+	unsigned int index = prev_index(history_index);
 	dbg_calc("%d:Waiting for thread with order=%d to finish with adding.\n",
 			history_index, index);
-	while (__sync_bool_compare_and_swap(&(global_context->order[index]), 0, 0)) {
-		;
-	}
-	__sync_lock_test_and_set(&global_context->order[history_index], 0);
+	wait_until_set_order(index);
+	sync_unset_order(history_index);
 	dbg_calc("%d:All good, free to go.\n", specific_index);
 	
 	rsj_pair_t *pair = (rsj_pair_t *)malloc(sizeof(rsj_pair_t));
@@ -191,7 +231,7 @@ void asks_insert(context_t *global_context,
 			}
 		} else {
 			asks->history[specific_index] =
-				asks->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE];
+				asks->history[prev_index_spec(specific_index)];
 		}
 	} else if (price_ask <= asks->price_ask) {
 		dbg_calc("Thread with history index=%d: new best price (ask).\n",
@@ -201,11 +241,11 @@ void asks_insert(context_t *global_context,
 		asks->history[specific_index] = vol_ask;
 	} else {
 		dbg_calc("%d: no change, using history.\n", specific_index);
-		asks->history[specific_index] = asks->history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE];
+		asks->history[specific_index] = asks->history[prev_index(specific_index)];
 	}
 	
 	/* Tell other threads that this thread is done with insertion. */
-	__sync_lock_test_and_set(&(global_context->order[history_index]), 1);
+	sync_set_order(history_index);
 	dbg_threading("Order=%d unlocked.\n", history_index);
 	dbg_calc("Thread with history index=%d: Price after insert = %d, volask=%d\n",
 	         specific_index, asks->price_ask,
@@ -233,7 +273,6 @@ int shared = 0;
 
 void *worker_start(void *data)
 {
-	context_t *global_context = (context_t *)data;
 	/* Obtain id. */
 	int id = __sync_fetch_and_add(&global_context->global_id, 1);
 	dbg_threading("Thread aquired ID=%d\n", id);
@@ -260,41 +299,13 @@ void *worker_start(void *data)
 				global_context->worker_data[id]->side;
 			int volume =
 				global_context->worker_data[id]->volume;
-			int order_index =
+			unsigned int order_index =
 				global_context->worker_data[id]->order_index;
-			int specific_index =
+			unsigned int specific_index =
 				global_context->worker_data[id]->specific_index;
 			assert(order_index < HISTORY_SIZE);
 			assert(specific_index < SPECIFIC_HISTORY_SIZE);
-			global_context->order[(unsigned char)(global_context->worker_data[id]->order_index + 1) % HISTORY_SIZE] = 0;
-			global_context->order_sum[(unsigned char)(global_context->worker_data[id]->order_index + 1) % HISTORY_SIZE] = 0;
-//			sequence testing
-//			printf("seqNum=%d index=%d, waiting for previous calc to be completed=%d\n",
-//			       seqNum,
-//			       order_index, (unsigned char)(order_index - 1) % HISTORY_SIZE);
-//			while (__sync_bool_compare_and_swap(&(global_context->order[(unsigned char)(order_index - 1) % HISTORY_SIZE]), 0, 0)) {
-//				;
-//			}
-//			__sync_lock_test_and_set(&(global_context->order[order_index]), 0);
-//			shared++;
-//			printf("seqNum=%d index=%d, it has modified the shared variable to be=%d\n",
-//			       seqNum,
-//			       order_index, shared);
-//			printf("seqNum=%d index=%d Order before: ",seqNum, order_index);
-//			for (int i = 0; i < HISTORY_SIZE; i++) {
-//				printf("%d", global_context->order[i]);
-//			}		
-//			printf("\n");
-//			printf("seqNum=%d index=%d Order after : ",seqNum, order_index);
-//			for (int i = 0; i < HISTORY_SIZE; i++) {
-//				if (i == order_index) {
-//					printf("1");
-//				} else {
-//					printf("%d", global_context->order[i]);
-//				}
-//			}
-//			printf("\n");
-//			assert(seqNum == shared);
+			global_context->order[(global_context->worker_data[id]->order_index + 1) % HISTORY_SIZE] = 0;
 //			__sync_lock_test_and_set(&(global_context->order[order_index]), 1);
 //			__sync_lock_test_and_set(&global_context->worker_data[id].go,
 //			                         0);
@@ -309,20 +320,18 @@ dbg_calc_exec(
 );
 			/* Insert this update to lookup structure. */
 			if (side == SIDE_BUYING) {
-				bids_insert(global_context,
-				            &(global_context->bids[instrument]),
-				            NULL, order_index, specific_index, volume, price);
+				bids_insert(&(global_context->bids[instrument]),
+				            order_index, specific_index, volume, price);
 				dbg_calc("Thread=%d seqNum=%d Instrument=%d index=%d Loading other data From history=%d\n",
-				         id, seqNum, instrument, specific_index, (unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE);
-				global_context->asks[instrument].history[specific_index] = global_context->asks[instrument].history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE];
+				         id, seqNum, instrument, specific_index, prev_index_spec(specific_index));
+				global_context->asks[instrument].history[specific_index] = global_context->asks[instrument].history[prev_index_spec(specific_index)];
 			} else {
-				asks_insert(global_context,
-				            &(global_context->asks[instrument]),
-				            NULL, order_index, specific_index, volume, price);
+				asks_insert(&(global_context->asks[instrument]),
+				            order_index, specific_index, volume, price);
 				dbg_calc("Thread=%d seqNum=%d Instrument=%d index=%d Loading other data From history=%d\n",
-				         id, seqNum, instrument, specific_index, (unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE);
-				global_context->bids[instrument].history[specific_index].price_bid = global_context->bids[instrument].history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].price_bid;
-				global_context->bids[instrument].history[specific_index].vol_bid = global_context->bids[instrument].history[(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE].vol_bid;
+				         id, seqNum, instrument, specific_index, prev_index_spec(specific_index));
+				global_context->bids[instrument].history[specific_index].price_bid = global_context->bids[instrument].history[prev_index_spec(specific_index)].price_bid;
+				global_context->bids[instrument].history[specific_index].vol_bid = global_context->bids[instrument].history[prev_index_spec(specific_index)].vol_bid;
 			}
 			
 			dbg_threading("Thread=%d: Data inserted.\n",
@@ -337,28 +346,27 @@ dbg_calc_exec(
 			int volask = global_context->asks[instrument].history[specific_index];
 			if (unlikely(volask == 0 || volbid == 0 || pricebid == 0)) {
 				/* Sum history unchanged. */
-				Result(global_context, seqNum, 0.0, order_index);
+//				consumer.Result(seqNum, 0.0);
+				result_c_style(seqNum, 0.0);
 				dbg_calc("Thread=%d returning 0 for seqNum=%d - not enough data (%d %d %d).\n",
 				         id, seqNum, pricebid, volbid, volask);
 				dbg_calc("Thread=%d seqNum=%d index=%d. Waiting for history unlock by index=%d.\n",
-				         id, seqNum, order_index, (unsigned char)(order_index - 1) % HISTORY_SIZE);
-				dbg_print_order_indices(global_context);
-				while (__sync_bool_compare_and_swap(&global_context->order_sum[(unsigned char)(order_index - 1) % HISTORY_SIZE], 0, 0)) {
-					;
-				}
-				__sync_lock_test_and_set(&(global_context->order_sum[order_index]), 0);
+				         id, seqNum, order_index, (order_index - 1) % HISTORY_SIZE);
+				dbg_print_order_indices();
+				wait_until_set_order_sum(prev_index(order_index));
+				sync_unset_order_sum(order_index);
 				shared++;
 				if (shared != seqNum) {
-					dbg_threading("%d %d\n", shared, seqNum);
+					dbg_threading("Failure: %d %d\n", shared, seqNum);
 					assert(0);
 				}
 				global_context->fp_i_history[instrument][specific_index] = 0.0;
 				global_context->sum_history[order_index] =
-					global_context->sum_history[(unsigned char)(order_index - 1) % HISTORY_SIZE] - global_context->fp_i_history[instrument][(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE];
+					global_context->sum_history[prev_index(order_index)] - global_context->fp_i_history[instrument][prev_index_spec(specific_index)];
 				dbg_calc("Thread=%d seqNum=%d Instrument=%d Index=%d reusing sum history (from history=%d sum=%f (deducted=%f)).\n",
 				         id, seqNum, instrument, order_index, order_index - 1, global_context->sum_history[order_index],
-				       global_context->fp_i_history[instrument][(unsigned char)(specific_index - 1) % SPECIFIC_HISTORY_SIZE]);
-				__sync_lock_test_and_set(&global_context->order_sum[order_index], 1);	
+				       global_context->fp_i_history[instrument][prev_index_spec(specific_index)]);
+				sync_set_order_sum(order_index);
 				continue;
 			}
 			
@@ -372,25 +380,24 @@ dbg_calc_exec(
 			/* Wait until previous threads store their sums. */
 			dbg_threading("Thread=%d order=%d seqNum=%d instrument=%d Waiting for index=%d to compute sum.\n",
 			              id, order_index, seqNum, instrument,
-			              (unsigned char)(order_index - 1) % HISTORY_SIZE);
-			while (__sync_bool_compare_and_swap(&global_context->order_sum[(unsigned char)(order_index - 1) % HISTORY_SIZE], 0, 0)) {
-			}
-			__sync_lock_test_and_set(&(global_context->order_sum[order_index]), 0);
+			              prev_index(order_index));
+			wait_until_set_order_sum(prev_index(order_index));
+			sync_unset_order_sum(order_index);
 			shared++;
 			if (shared != seqNum) {
-				dbg_threading("%d %d\n", shared, seqNum);
+				dbg_threading("Failure=%d %d\n", shared, seqNum);
 				assert(0);
 			}
 			assert(global_context->order_sum[order_index] == 0);
 			dbg_threading("Thread=%d order=%d seqNum=%d instrument=%d index=%d unlocked sum.\n",
 			              id, order_index, seqNum, instrument, order_index - 1);
-			double sum = global_context->sum_history[(unsigned char)(order_index - 1) % HISTORY_SIZE];
+			double sum = global_context->sum_history[prev_index(order_index)];
 					
-			dbg_calc("Thread %d: seqNum=%d Instrument=%d Index=%d Loading sum from history=%d =%f\n", id ,seqNum, instrument, order_index, (unsigned char)(order_index - 1) % HISTORY_SIZE,
+			dbg_calc("Thread %d: seqNum=%d Instrument=%d Index=%d Loading sum from history=%d =%f\n", id ,seqNum, instrument, order_index, (order_index - 1) % HISTORY_SIZE,
 			         sum);
 			
 			/* Change fp_sum accordingly. */
-			sum -= global_context->fp_i_history[instrument][(unsigned char)(specific_index -1) % HISTORY_SIZE];
+			sum -= global_context->fp_i_history[instrument][(specific_index -1) % HISTORY_SIZE];
 			sum += fp_i;
 			double res = fp_i / sum;
 			if (unlikely(isinf(res))) {
@@ -398,8 +405,9 @@ dbg_calc_exec(
 			}
 			dbg_calc("Thread %d: seqNum=%d Instrument=%d: %f/%f\n",
 			       id, seqNum, instrument, fp_i, sum);
-			Result(global_context, seqNum, res, order_index);//compute_fp_global(global_context->fp_sums,
-			dbg_calc("%d: seqNum=%d History=%d Deducting from sum=%f\n", id, seqNum, specific_index, global_context->fp_i_history[instrument][(unsigned char)(specific_index -1) % HISTORY_SIZE]);
+//			consumer.Result(seqNum, res);
+			result_c_style(seqNum, res);
+			dbg_calc("%d: seqNum=%d History=%d Deducting from sum=%f\n", id, seqNum, specific_index, global_context->fp_i_history[instrument][(specific_index -1) % HISTORY_SIZE]);
 			global_context->sum_history[order_index] = sum;
 			dbg_calc("%d: seqNum=%d History=%d Adding to sum=%f\n",
 			       id, seqNum, order_index, fp_i);
@@ -412,7 +420,7 @@ dbg_calc_exec(
 			global_context->fp_i_history[instrument][specific_index] = fp_i;
 			dbg_threading("%d: seqNum=%d index=%d Unlocking sums.\n",
 			id, seqNum, order_index);
-			__sync_lock_test_and_set(&global_context->order_sum[order_index], 1);
+			sync_set_order_sum(order_index);
 			/* Work done. */
 	}
 	
@@ -422,92 +430,91 @@ dbg_calc_exec(
 
 spinlock_t file_lock;
 
-//TODO move to c++ class once done
-void Initialize(context_t *my_context)
+void initialize_c_style()
 {
+	global_context = (context_t *)malloc(sizeof(context_t));
 	/* Init basic variables. */
-	my_context->global_id = 0;
-	my_context->running = 1;
-	my_context->order_index = 0;
+	global_context->global_id = 0;
+	global_context->running = 1;
+	global_context->order_index = 0;
 	int ret = pthread_barrier_init(&tmp_barrier, NULL,
 	                               THREAD_COUNT + 1);
 	assert(ret == 0);
 	
 	/* Init worker structures. */
 	for (int i = 0; i < INSTRUMENT_COUNT; i++) {
-		my_context->worker_data[i] = (rsj_data_in_t *)malloc(sizeof(rsj_data_in_t));
-		my_context->worker_data[i]->instrument = 0;
-		my_context->worker_data[i]->order_index = 0;
-		my_context->worker_data[i]->price = 0;
-		my_context->worker_data[i]->seqNum = 0;
-		my_context->worker_data[i]->side = 0;
-		my_context->worker_data[i]->specific_index = 0;
-		my_context->worker_data[i]->volume = 0;
+		global_context->worker_data[i] = (rsj_data_in_t *)malloc(sizeof(rsj_data_in_t));
+		global_context->worker_data[i]->instrument = 0;
+		global_context->worker_data[i]->order_index = 0;
+		global_context->worker_data[i]->price = 0;
+		global_context->worker_data[i]->seqNum = 0;
+		global_context->worker_data[i]->side = 0;
+		global_context->worker_data[i]->specific_index = 0;
+		global_context->worker_data[i]->volume = 0;
 	}
 	
 	/* Init spinlocks. */
 	for (int i = 0; i < INSTRUMENT_COUNT; i++) {
-//		spinlock_init(&(my_context->insert_instrument_lock[i]),
+//		spinlock_init(&(global_context->insert_instrument_lock[i]),
 //		              PTHREAD_PROCESS_SHARED);
-		my_context->fp_i_history[i] = (double *)malloc(HISTORY_SIZE * sizeof(double));
+		global_context->fp_i_history[i] = (double *)malloc(HISTORY_SIZE * sizeof(double));
 		for (int j = 0; j < HISTORY_SIZE; j++) {
-			my_context->fp_i_history[i][j] = 0.0;
+			global_context->fp_i_history[i][j] = 0.0;
 		}
-		my_context->order_indices_bid[i] = 0;
-		assert(my_context->fp_i_history[i]);
+		global_context->order_indices_bid[i] = 0;
+		assert(global_context->fp_i_history[i]);
 	}
 	
 	/* Start worker threads. */
 	for (int i = 0; i < THREAD_COUNT; i++) {
-		pthread_create(&(my_context->worker_threads[i]),
-		               NULL, worker_start, my_context);
+		pthread_create(&(global_context->worker_threads[i]),
+		               NULL, worker_start, global_context);
 	}
 	
 	dbg_threading("Threads started.\n");
 	
 	/* Init lookup structures. */
 	for (int i = 0; i < INSTRUMENT_COUNT; i++) {
-		my_context->asks[i].tree = rb_create(int_comparison, NULL,
+		global_context->asks[i].tree = rb_create(int_comparison, NULL,
 		                                     &rb_allocator_default);
-		assert(my_context->asks[i].tree);
-		my_context->asks[i].vol_ask = 0;
-		my_context->asks[i].price_ask = INT_MAX;
-		my_context->bids[i].tree = rb_create(int_comparison, NULL,
+		assert(global_context->asks[i].tree);
+		global_context->asks[i].vol_ask = 0;
+		global_context->asks[i].price_ask = INT_MAX;
+		global_context->bids[i].tree = rb_create(int_comparison, NULL,
 		                                     &rb_allocator_default);
-		assert(my_context->bids[i].tree);
+		assert(global_context->bids[i].tree);
 		for (int j = 0; j < HISTORY_SIZE; j++) {
-			my_context->bids[i].history[j].price_bid = 0;
-			my_context->bids[i].history[j].vol_bid = 0;
-			my_context->asks[i].history[j] = 0;
+			global_context->bids[i].history[j].price_bid = 0;
+			global_context->bids[i].history[j].vol_bid = 0;
+			global_context->asks[i].history[j] = 0;
 		}
-		my_context->bids[i].price_bid = 0;
-		my_context->bids[i].vol_bid = 0;
+		global_context->bids[i].price_bid = 0;
+		global_context->bids[i].vol_bid = 0;
 	}
 	
 	for (int i = 0; i < HISTORY_SIZE; i++) {
-		my_context->order[i] = 0;
-		my_context->order_sum[i] = 0;
-		my_context->sum_history[i] = 0.0;
+		global_context->order[i] = 0;
+		global_context->order_sum[i] = 0;
+		global_context->sum_history[i] = 0.0;
 	}
 	
-	my_context->order[HISTORY_SIZE - 1] = 1;
+	global_context->order[HISTORY_SIZE - 1] = 1;
 	//todo je potreba order_sum? nestaci order? jsou tam jine informace?
-	my_context->order_sum[HISTORY_SIZE - 1] = 1;
+	global_context->order_sum[HISTORY_SIZE - 1] = 1;
 	
-	my_context->buffer = (ck_ring_t *)malloc(sizeof(ck_ring_t));
+	global_context->buffer = (ck_ring_t *)malloc(sizeof(ck_ring_t));
 	void *data_buffer = malloc(4096);
-	ck_ring_init(my_context->buffer, data_buffer, 4);
+	ck_ring_init(global_context->buffer, data_buffer, 4);
 	
 	dbg_threading("Structures allocated. (context=%p)\n",
-	              my_context);
+	              global_context);
 	
 	pthread_barrier_wait(&tmp_barrier);
 }
 
 struct timespec times[HISTORY_SIZE];
 
-void Update(context_t *my_context, int seqNum, int instrument,
-            int price, int volume, int side)
+void update_c_style(int seqNum, int instrument, int price, int volume, int side)
 {
 	struct timespec time;
 	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time);
@@ -518,22 +525,21 @@ void Update(context_t *my_context, int seqNum, int instrument,
 	data->side = side;
 	data->volume = volume;
 	data->price = price;
-	data->order_index = (unsigned char)(my_context->order_index++) % HISTORY_SIZE;
-	
-	data->specific_index = (unsigned char)(my_context->order_indices_bid[instrument]++) % SPECIFIC_HISTORY_SIZE;
-	while (!ck_ring_enqueue_spmc(my_context->buffer, (void *)data)) {
+	data->order_index = (global_context->order_index++) % HISTORY_SIZE;
+	data->specific_index = (global_context->order_indices_bid[instrument]++) % SPECIFIC_HISTORY_SIZE;
+	while (!ck_ring_enqueue_spmc(global_context->buffer, (void *)data)) {
 		;
 	}
 	times[data->order_index] = time;
 	dbg_ring("Enqueued seqNum=%d\n", seqNum);
 }
 
-void Destructor(context_t *context)
+void destructor_c_style()
 {
 	for (int i = 0; i < THREAD_COUNT; i++) {
-		pthread_kill(context->worker_threads[i], 3);
+		pthread_kill(global_context->worker_threads[i], 3);
 	}
-	context->running = 0;
+	global_context->running = 0;
 }
 
 struct timespec timespec_diff(struct timespec start, struct timespec end)
@@ -549,19 +555,16 @@ struct timespec timespec_diff(struct timespec start, struct timespec end)
 	return temp;
 }
 
-void Result(context_t *context,
-            int seqNum, double fp_global_i, int index)
+void result_c_style(int seqNum, double fp_global_i)
 {
-	printf("%d\n", sizeof(context_t));
-	getchar();
 	unsigned int nano = 0;
-	struct timespec time;
-	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time);
-	struct timespec diff = timespec_diff(times[index], time);
-	nano = diff.tv_nsec;
+//	struct timespec time;
+//	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time);
+//	struct timespec diff = timespec_diff(times[index], time);
+//	nano = diff.tv_nsec;
 	fprintf(stderr, "Result called: %d, %.9f (%d)\n", seqNum, fp_global_i,
 	        nano);
 	if (seqNum == 1000) {
-		Destructor(context);
+		destructor_c_style();
 	}
 }

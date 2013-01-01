@@ -2,8 +2,8 @@
 #define DEBUG_H
 
 //#define TEST_DEBUG
-//#define CALC_DEBUG
-//#define THREADING_DEBUG
+#define CALC_DEBUG
+#define THREADING_DEBUG
 //#define RING_DEBUG
 
 #ifdef TEST_DEBUG
@@ -26,7 +26,7 @@
 #define dbg_calc_exec(cmds)
 #endif
 
-#ifdef RING_DEBUG
+#ifdef THREADING_DEBUG
 #define dbg_threading(msg...) printf(msg)
 #define dbg_threading_hex(data, len)  hex_log(LOG_ZONE, (data), (len))
 #define dbg_threading_exec(cmds) do { cmds } while (0)

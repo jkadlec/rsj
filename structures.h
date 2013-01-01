@@ -2,13 +2,14 @@
 #define STRUCTURES_H
 
 #include <pthread.h>
-
 #include <ck_ring.h>
-#include "rb.h"
 
-#define THREAD_COUNT 1
-#define HISTORY_SIZE 16
-#define SPECIFIC_HISTORY_SIZE 16
+#include "rb.h"
+#include "iresultconsumer.h"
+
+#define THREAD_COUNT 4
+#define HISTORY_SIZE 8
+#define SPECIFIC_HISTORY_SIZE 7
 
 #define MEASURE_TIME
 
@@ -47,8 +48,9 @@ struct rsj_data_in {
 	int price;
 	int volume;
 	int side;
-	char order_index;
-	char specific_index;
+	unsigned int order_index;
+	unsigned int specific_index;
+	char PAD[64 - (sizeof(int) * 5 + 2)];
 };
 
 typedef struct rsj_data_in rsj_data_in_t;
@@ -97,5 +99,8 @@ struct context {
 };
 
 typedef struct context context_t;
+     
+static context_t *global_context;
+static IResultConsumer consumer;
 
 #endif // STRUCTURES_H

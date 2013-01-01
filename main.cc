@@ -3,10 +3,12 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include "tester.h"
 #include "structures.h"
 #include "debug.h"
+#include "iupdateprocessor.h"
 
 int tester_load_csv_file(const char *filename, rsj_data_t ***data,
                          size_t *data_count)
@@ -65,14 +67,14 @@ int tester_load_csv_file(const char *filename, rsj_data_t ***data,
 }
 
 
-void do_test(context_t *my_context,
-             rsj_data_t **data, size_t count)
+void do_test(rsj_data_t **data, size_t count)
 {
 	dbg_test("Testing %d queries.\n",
 	         count);
+	IUpdateProcessor *proc = new IUpdateProcessor();
 	for (int i = 0; i < count; i++) {
-		Update(my_context, data[i]->seqNum, data[i]->instrument,
-		       data[i]->price, data[i]->volume, data[i]->side);
+		proc->Update(data[i]->seqNum, data[i]->instrument,
+		             data[i]->price, data[i]->volume, data[i]->side);
 	}
 }
 
@@ -85,14 +87,13 @@ int main(int argc, char **argv)
 	                               &data_count);
 	assert(ret == 0);
 	/* Feed the data to a testing structure. */
-	context_t my_context;
-	Initialize(&my_context);
+	initialize_c_style();
 	/* Start the computation. */
-	do_test(&my_context, data, 1000);
-	/* Check the results. */
+	do_test(data, 10);
 	
 //	getchar();
-	while (__sync_bool_compare_and_swap(&my_context.running, 1, 1)) {
+	sleep(5);
+	while (__sync_bool_compare_and_swap(&global_context->running, 1, 1)) {
 		;
 	}
 	
