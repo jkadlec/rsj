@@ -6,13 +6,14 @@
 #include "worker.h"
 #include "table.h"
 #include "init.h"
+#include "debug.h"
 
 //from stackoverflow
 void stick_this_thread_to_core(int core_id) {
         int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
-        printf("CORES: %d\n", num_cores);
+        dbg_threading("CORES: %d\n", num_cores);
         if (core_id >= num_cores) {
-                printf("not setting affinity\n");
+                dbg_threading("not setting affinity\n");
                 return;
         }
 
@@ -26,7 +27,7 @@ void stick_this_thread_to_core(int core_id) {
         pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
         for (int j = 0; j < num_cores; j++) {
                 if (CPU_ISSET(j, &cpuset)) {
-                        printf("Thread %d out of %d set.\n", j, num_cores);
+                        dbg_threading("Thread %d out of %d set.\n", j, num_cores);
                 }
         }
 }

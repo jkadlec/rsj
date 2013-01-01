@@ -21,7 +21,7 @@
 
 static uint64_t time_sum = 0;
 
-static const int affinity_map[2] = {[0] = 0, [1] = 1};
+static const int affinity_map[2] = {0, 1};
 
 void dbg_print_order_indices()
 {
@@ -247,7 +247,7 @@ dbg_calc_exec(
 void destructor_c_style()
 {
 	for (int i = 0; i < THREAD_COUNT; i++) {
-		pthread_kill(global_context->worker_threads[i], 3);
+		pthread_kill(global_context->worker_threads[i], 2);
 	}
 	global_context->running = 0;
 }
