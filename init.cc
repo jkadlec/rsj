@@ -30,11 +30,9 @@ void initialize_c_style()
 	int ret = pthread_barrier_init(&start_barrier, NULL,
 	                               THREAD_COUNT + 1);
 	assert(ret == 0);
-	
-	/* Init spinlocks. */
+
+	/* Init histories. */	
 	for (int i = 0; i < INSTRUMENT_COUNT; i++) {
-//		spinlock_init(&(global_context->insert_instrument_lock[i]),
-//		              PTHREAD_PROCESS_SHARED);
 		global_context->fp_i_history[i] = (double *)malloc(HISTORY_SIZE * sizeof(double));
 		for (int j = 0; j < HISTORY_SIZE; j++) {
 			global_context->fp_i_history[i][j] = 0.0;
@@ -51,7 +49,7 @@ void initialize_c_style()
 	
 	dbg_threading("Threads started.\n");
 	
-	/* Init lookup structures. */
+	/* Init lookup structures + price histories. */
 	for (int i = 0; i < INSTRUMENT_COUNT; i++) {
 		global_context->asks[i].tree = rb_create(int_comparison, NULL,
 		                                     &rb_allocator_default);
@@ -75,13 +73,15 @@ void initialize_c_style()
 		global_context->order_sum[i] = 0;
 		global_context->sum_history[i] = 0.0;
 	}
-	
+
+	/* Ordering. */	
 	global_context->order[HISTORY_SIZE - 1] = 1;
 	global_context->order_sum[HISTORY_SIZE - 1] = 1;
 	
+	/* Ring buffer. */
 	global_context->buffer = (ck_ring_t *)malloc(sizeof(ck_ring_t));
-	void *data_buffer = malloc(4096);
-	ck_ring_init(global_context->buffer, data_buffer, 4);
+	void *data_buffer = malloc(BUFFER_SIZE * sizeof(void *));
+	ck_ring_init(global_context->buffer, data_buffer, BUFFER_SIZE);
 	
 	dbg_threading("Structures allocated. (context=%p)\n",
 	              global_context);

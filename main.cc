@@ -71,7 +71,7 @@ void do_test(IUpdateProcessor *proc, rsj_data_t **data, size_t count)
 {
 	dbg_test("Testing %d queries.\n",
 	         count);
-	for (int i = 0; i < count; i++) {
+	for (size_t i = 0; i < count; i++) {
 		proc->Update(data[i]->seqNum, data[i]->instrument,
 		             data[i]->price, data[i]->volume, data[i]->side);
 	}

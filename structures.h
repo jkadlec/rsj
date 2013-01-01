@@ -8,13 +8,12 @@
 #include "rb.h"
 #include "iresultconsumer.h"
 
-#define THREAD_COUNT 1
+#define THREAD_COUNT 2
 #define HISTORY_SIZE 8
 #define SPECIFIC_HISTORY_SIZE 8
+#define BUFFER_SIZE 16
 
 #define MEASURE_TIME
-
-#define spinlock_t pthread_spinlock_t
 
 enum rsj_consts {
 	INSTRUMENT_COUNT = 20
@@ -82,15 +81,13 @@ struct lookup_ask {
 typedef struct lookup_ask lookup_ask_t;
 
 struct context {
-	pthread_barrier_t *global_worker_sync;
 	int running;
 	int global_id;
 	lookup_bid_t bids[INSTRUMENT_COUNT];
 	lookup_ask_t asks[INSTRUMENT_COUNT];
 	pthread_t worker_threads[THREAD_COUNT];
-	/* Overflow OK. */
-	unsigned char order_index;
-	unsigned char order_indices_bid[INSTRUMENT_COUNT];
+	unsigned int order_index;
+	unsigned int order_indices_bid[INSTRUMENT_COUNT];
 	int order[HISTORY_SIZE];
 	int order_sum[HISTORY_SIZE];
 	double sum_history[HISTORY_SIZE];

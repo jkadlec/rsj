@@ -18,10 +18,6 @@
 #include "sync.h"
 #include "iresultconsumer.h"
 
-#define spinlock_init pthread_spin_init
-#define spinlock_lock pthread_spin_lock
-#define spinlock_unlock pthread_spin_unlock
-
 void dbg_print_order_indices()
 {
 dbg_threading_exec(
@@ -32,6 +28,20 @@ dbg_threading_exec(
 	dbg_threading("\n");
 );
 }
+
+static struct timespec timespec_diff(struct timespec start, struct timespec end)
+{
+	timespec temp;
+	if ((end.tv_nsec-start.tv_nsec)<0) {
+		temp.tv_sec = end.tv_sec-start.tv_sec-1;
+		temp.tv_nsec = 1000000000+end.tv_nsec-start.tv_nsec;
+	} else {
+		temp.tv_sec = end.tv_sec-start.tv_sec;
+		temp.tv_nsec = end.tv_nsec-start.tv_nsec;
+	}
+	return temp;
+}
+
 
 #define SIDE_BUYING 0
 #define SIDE_SELLING 1
@@ -48,13 +58,13 @@ inline double compute_fp_i(double equity, int pricebid_i)
 
 int shared = 0;
 
-void result_c_style(int seqNum, double fp_global_i)
+void result_testing(int seqNum, double fp_global_i, int index)
 {
 	unsigned int nano = 0;
-//	struct timespec time;
-//	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time);
-//	struct timespec diff = timespec_diff(times[index], time);
-//	nano = diff.tv_nsec;
+	struct timespec time;
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time);
+	struct timespec diff = timespec_diff(times[index], time);
+	nano = diff.tv_nsec;
 	fprintf(stderr, "Result called: %d, %.9f (%d)\n", seqNum, fp_global_i,
 	        nano);
 	if (seqNum == 1000) {
@@ -133,7 +143,7 @@ inline void compute_return_fp_i(rsj_data_in_t *data, int id, int volbid,
         dbg_calc("Thread %d: data->seqNum=%d data->instrument=%d: %f/%f\n",
                id, data->seqNum, data->instrument, fp_i, sum);
 //	consumer.Result(data->seqNum, res);
-        result_c_style(data->seqNum, res);
+        result_testing(data->seqNum, res, data->order_index);
         dbg_calc("%d: data->seqNum=%d History=%d Deducting from sum=%f\n", id, data->seqNum, data->specific_index, global_context->fp_i_history[data->instrument][(data->specific_index -1) % HISTORY_SIZE]);
         global_context->sum_history[data->order_index] = sum;
         dbg_calc("%d: data->seqNum=%d History=%d Adding to sum=%f\n",
@@ -191,14 +201,13 @@ void *worker_start(void *null_data)
 		                           (void *)(&local_data))) {
 			;
 		}
-                		
-			dbg_ring("dequeded seqNum=%d\n",
-			         global_context->worker_data[id]->seqNum);
+		dbg_ring("dequeded seqNum=%d\n",
+		         global_context->worker_data[id]->seqNum);
+		
+		sync_unset_order(next_index(local_data->order_index));
+		sync_unset_order_sum(next_index(local_data->order_index));
 			
-			sync_unset_order(next_index(local_data->order_index));
-			sync_unset_order_sum(next_index(local_data->order_index));
-			
-			insert_data(local_data, id);
+		insert_data(local_data, id);
 			
 dbg_calc_exec(
 		dbg_calc("seqNum=%d history=%d Sums: ",
@@ -218,7 +227,7 @@ dbg_calc_exec(
 			if (unlikely(volask == 0 || volbid == 0 || pricebid == 0)) {
 				/* Sum history unchanged. */
 //				consumer.Result(seqNum, 0.0);
-				result_c_style(local_data->seqNum, 0.0);
+				result_testing(local_data->seqNum, 0.0, local_data->order_index);
         			dbg_calc("Thread=%d returning 0 for seqNum=%d - not enough data (%d %d %d).\n",
 		                         id, local_data->seqNum, pricebid, volbid, volask);
 				history_shift(local_data, id);
@@ -234,8 +243,6 @@ dbg_calc_exec(
 	return NULL;
 }
 
-struct timespec times[HISTORY_SIZE];
-
 void destructor_c_style()
 {
 	for (int i = 0; i < THREAD_COUNT; i++) {
@@ -244,16 +251,5 @@ void destructor_c_style()
 	global_context->running = 0;
 }
 
-struct timespec timespec_diff(struct timespec start, struct timespec end)
-{
-	timespec temp;
-	if ((end.tv_nsec-start.tv_nsec)<0) {
-		temp.tv_sec = end.tv_sec-start.tv_sec-1;
-		temp.tv_nsec = 1000000000+end.tv_nsec-start.tv_nsec;
-	} else {
-		temp.tv_sec = end.tv_sec-start.tv_sec;
-		temp.tv_nsec = end.tv_nsec-start.tv_nsec;
-	}
-	return temp;
-}
+
 
