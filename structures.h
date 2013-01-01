@@ -2,6 +2,7 @@
 #define STRUCTURES_H
 
 #include <pthread.h>
+#include <malloc.h>
 #include <ck_ring.h>
 
 #include "rb.h"
@@ -99,8 +100,4 @@ struct context {
 
 typedef struct context context_t;
      
-static context_t *global_context;
-static IResultConsumer consumer;
-static pthread_barrier_t tmp_barrier;
-
 #endif // STRUCTURES_H

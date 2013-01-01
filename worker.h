@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #include "structures.h"
+#include "globals.h"
 #include "debug.h"
 
 void *worker_start(void *null_data);

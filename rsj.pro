@@ -6,7 +6,8 @@ SOURCES += \
     rb.c \
     iupdateprocessor.cc \
     init.cc \
-    worker.cc
+    worker.cc \
+    globals.cc
 
 HEADERS += \
     debug.h \
@@ -18,5 +19,6 @@ HEADERS += \
     table.h \
     worker.h \
     sync.h \
-    helpers.h
+    helpers.h \
+    globals.h
 

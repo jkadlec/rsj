@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <assert.h>
+#include <stdio.h>
 #include "debug.h"
 #include "helpers.h"
 #include "sync.h"

@@ -87,7 +87,6 @@ int main(int argc, char **argv)
 	assert(ret == 0);
 	IUpdateProcessor *proc = new IUpdateProcessor();
 	proc->Initialize(consumer);
-	sleep(1);
 	/* Start the computation. */
 	do_test(proc, data, 1000);
 	

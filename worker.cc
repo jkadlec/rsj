@@ -18,7 +18,6 @@
 #include "sync.h"
 #include "iresultconsumer.h"
 
-
 #define spinlock_init pthread_spin_init
 #define spinlock_lock pthread_spin_lock
 #define spinlock_unlock pthread_spin_unlock
@@ -73,7 +72,7 @@ inline void insert_data(rsj_data_in_t *data, int id)
 		dbg_calc("Thread=%d seqNum=%d Instrument=%d index=%d Loading other data From history=%d\n",
 		         id, data->seqNum, data->instrument,
 		         data->specific_index,
-		         data->prev_index_spec(data->specific_index));
+		         prev_index_spec(data->specific_index));
 		global_context->asks[data->instrument].history[data->specific_index] =
 			global_context->asks[data->instrument].history[prev_index_spec(data->specific_index)];
 	} else {
@@ -83,7 +82,7 @@ inline void insert_data(rsj_data_in_t *data, int id)
 		dbg_calc("Thread=%d seqNum=%d Instrument=%d index=%d Loading other data From history=%d\n",
 		         id, data->seqNum, data->instrument,
 		         data->specific_index,
-		         data->prev_index_spec(data->specific_index));
+		         prev_index_spec(data->specific_index));
 		global_context->bids[data->instrument].history[data->specific_index].price_bid = global_context->bids[data->instrument].history[prev_index_spec(data->specific_index)].price_bid;
 		global_context->bids[data->instrument].history[data->specific_index].vol_bid = global_context->bids[data->instrument].history[prev_index_spec(data->specific_index)].vol_bid;
 	}
@@ -135,7 +134,7 @@ inline void compute_return_fp_i(rsj_data_in_t *data, int id, int volbid,
                id, data->seqNum, data->instrument, fp_i, sum);
 //	consumer.Result(data->seqNum, res);
         result_c_style(data->seqNum, res);
-        dbg_calc("%d: data->seqNum=%d History=%d Deducting from sum=%f\n", id, data->seqNum, specific_index, global_context->fp_i_history[instrument][(specific_index -1) % HISTORY_SIZE]);
+        dbg_calc("%d: data->seqNum=%d History=%d Deducting from sum=%f\n", id, data->seqNum, data->specific_index, global_context->fp_i_history[data->instrument][(data->specific_index -1) % HISTORY_SIZE]);
         global_context->sum_history[data->order_index] = sum;
         dbg_calc("%d: data->seqNum=%d History=%d Adding to sum=%f\n",
                id, data->seqNum, data->order_index, fp_i);
@@ -144,7 +143,7 @@ inline void compute_return_fp_i(rsj_data_in_t *data, int id, int volbid,
                id, data->seqNum, data->order_index,
                sum);
         dbg_calc("%d: data->seqNum=%d History=%d Saving fp_i=%f\n",
-        id, data->seqNum, specific_index, fp_i);
+        id, data->seqNum, data->specific_index, fp_i);
         global_context->fp_i_history[data->instrument][data->specific_index] = fp_i;
         dbg_threading("%d: data->seqNum=%d index=%d Unlocking sums.\n",
         id, data->seqNum, data->order_index);
@@ -154,35 +153,36 @@ inline void compute_return_fp_i(rsj_data_in_t *data, int id, int volbid,
 
 inline void history_shift(rsj_data_in_t *data, int id)
 {
-        dbg_calc("Thread=%d returning 0 for seqNum=%d - not enough data (%d %d %d).\n",
-                 id, data->seqNum, pricebid, volbid, volask);
         dbg_calc("Thread=%d seqNum=%d index=%d. Waiting for history unlock by index=%d.\n",
-                 id, data->seqNum, data->order_index, (order_index - 1) % HISTORY_SIZE);
+                 id, data->seqNum, data->order_index, (data->order_index - 1) % HISTORY_SIZE);
         dbg_print_order_indices();
         wait_until_set_order_sum(prev_index(data->order_index));
         sync_unset_order_sum(data->order_index);
         shared++;
         if (shared != data->seqNum) {
-            dbg_threading("Failure: %d %d\n", shared, seqNum);
+            dbg_threading("Failure: %d %d\n", shared, data->seqNum);
             assert(0);
         }
         global_context->fp_i_history[data->instrument][data->specific_index] = 0.0;
         global_context->sum_history[data->order_index] =
             global_context->sum_history[prev_index(data->order_index)] - global_context->fp_i_history[data->instrument][prev_index_spec(data->specific_index)];
         dbg_calc("Thread=%d seqNum=%d Instrument=%d Index=%d reusing sum history (from history=%d sum=%f (deducted=%f)).\n",
-                 id, seqNum, instrument, order_index, order_index - 1, global_context->sum_history[order_index],
-               global_context->fp_i_history[instrument][prev_index_spec(specific_index)]);
+                 id, data->seqNum, data->instrument, data->order_index,
+	         data->order_index - 1,
+	         global_context->sum_history[data->order_index],
+               global_context->fp_i_history[data->instrument][prev_index_spec(data->specific_index)]);
         sync_set_order_sum(data->order_index);
 }
 
 void *worker_start(void *null_data)
 {
 	/* Obtain id. */
-	int id = __sync_fetch_and_add(&global_context->global_id, 1);
+	dbg_threading("Thread started.\n");
+	int id = __sync_fetch_and_add(&(global_context->global_id), 1);
 	dbg_threading("Thread aquired ID=%d\n", id);
 	/* Sync with other worker threads. */
 	rsj_data_in_t *local_data = NULL;
-	pthread_barrier_wait(&tmp_barrier);
+	pthread_barrier_wait(&start_barrier);
 	dbg_threading("Thread ID=%d past the barrier.\n", id);
 	/* While computation not done */
 	while (global_context->running) {
@@ -219,6 +219,8 @@ dbg_calc_exec(
 				/* Sum history unchanged. */
 //				consumer.Result(seqNum, 0.0);
 				result_c_style(local_data->seqNum, 0.0);
+        			dbg_calc("Thread=%d returning 0 for seqNum=%d - not enough data (%d %d %d).\n",
+		                         id, local_data->seqNum, pricebid, volbid, volask);
 				history_shift(local_data, id);
 				continue;
 			}
