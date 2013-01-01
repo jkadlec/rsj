@@ -311,8 +311,8 @@ void *worker_start(void *data)
 				global_context->worker_data[id]->specific_index;
 			assert(order_index < HISTORY_SIZE);
 			assert(specific_index < SPECIFIC_HISTORY_SIZE);
-//			global_context->order[(global_context->worker_data[id]->order_index + 1) % HISTORY_SIZE] = 0;
 			sync_unset_order(next_index(order_index));
+			sync_unset_order_sum(next_index(order_index));
 dbg_calc_exec(
 		dbg_calc("seqNum=%d history=%d Sums: ",
 		       seqNum, order_index);
