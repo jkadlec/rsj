@@ -14,9 +14,14 @@
 #include "structures.h"
 #include "helpers.h"
 #include "table.h"
+#include "init.h"
 #include "worker.h"
 #include "sync.h"
 #include "iresultconsumer.h"
+
+static uint64_t time_sum = 0;
+
+static const int affinity_map[2] = {[0] = 0, [1] = 1};
 
 void dbg_print_order_indices()
 {
@@ -56,18 +61,22 @@ inline double compute_fp_i(double equity, int pricebid_i)
 	return (double)pricebid_i + f + g;
 }
 
-int shared = 0;
-
 void result_testing(int seqNum, double fp_global_i, int index)
 {
 	unsigned int nano = 0;
+#ifdef MEASURE_TIME
 	struct timespec time;
 	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time);
 	struct timespec diff = timespec_diff(times[index], time);
 	nano = diff.tv_nsec;
+	time_sum += nano;
+#endif
 	fprintf(stderr, "Result called: %d, %.9f (%d)\n", seqNum, fp_global_i,
 	        nano);
-	if (seqNum == 1000) {
+	if (seqNum == TESTING_COUNT) {
+#ifdef MEASURE_TIME
+		printf("MEAN: %llu\n", time_sum / TESTING_COUNT);
+#endif
 		destructor_c_style();
 	}
 }
@@ -120,11 +129,6 @@ inline void compute_return_fp_i(rsj_data_in_t *data, int id, int volbid,
                       prev_index(data->order_index));
         wait_until_set_order_sum(prev_index(data->order_index));
         sync_unset_order_sum(data->order_index);
-        shared++;
-        if (shared != data->seqNum) {
-            dbg_threading("Failure=%d %d\n", shared, data->seqNum);
-            assert(0);
-        }
         assert(global_context->order_sum[data->order_index] == 0);
         dbg_threading("Thread=%d order=%d data->seqNum=%d data->instrument=%d index=%d unlocked sum.\n",
                       id, data->order_index, data->seqNum, data->instrument, data->order_index - 1);
@@ -168,11 +172,6 @@ inline void history_shift(rsj_data_in_t *data, int id)
         dbg_print_order_indices();
         wait_until_set_order_sum(prev_index(data->order_index));
         sync_unset_order_sum(data->order_index);
-        shared++;
-        if (shared != data->seqNum) {
-            dbg_threading("Failure: %d %d\n", shared, data->seqNum);
-            assert(0);
-        }
         global_context->fp_i_history[data->instrument][data->specific_index] = 0.0;
         global_context->sum_history[data->order_index] =
             global_context->sum_history[prev_index(data->order_index)] - global_context->fp_i_history[data->instrument][prev_index_spec(data->specific_index)];
@@ -190,6 +189,8 @@ void *worker_start(void *null_data)
 	dbg_threading("Thread started.\n");
 	int id = __sync_fetch_and_add(&(global_context->global_id), 1);
 	dbg_threading("Thread aquired ID=%d\n", id);
+	/* Set affinity. */
+	stick_this_thread_to_core(affinity_map[id]);
 	/* Sync with other worker threads. */
 	rsj_data_in_t *local_data = NULL;
 	pthread_barrier_wait(&start_barrier);

@@ -1,9 +1,35 @@
 #include <stdlib.h>
 #include <assert.h>
+#include <pthread.h>
+#include <unistd.h>
 
 #include "worker.h"
 #include "table.h"
 #include "init.h"
+
+//from stackoverflow
+void stick_this_thread_to_core(int core_id) {
+        int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+        printf("CORES: %d\n", num_cores);
+        if (core_id >= num_cores) {
+                printf("not setting affinity\n");
+                return;
+        }
+
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(core_id, &cpuset);
+
+        pthread_t current_thread = pthread_self();    
+        int return_val = pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
+        assert(return_val == 0);
+        pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+        for (int j = 0; j < num_cores; j++) {
+                if (CPU_ISSET(j, &cpuset)) {
+                        printf("Thread %d out of %d set.\n", j, num_cores);
+                }
+        }
+}
 
 int int_comparison(const void *rb_a, const void *rb_b,
                    void *rb_param)

@@ -13,8 +13,10 @@ void *worker_start(void *null_data);
 inline void update_c_style(int seqNum, int instrument, int price, int volume,
                            int side)
 {
+#ifdef MEASURE_TIME
 	struct timespec time;
 	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time);
+#endif
 	rsj_data_in_t *data = (rsj_data_in_t *)malloc(sizeof(rsj_data_in_t));
 	data->seqNum = seqNum;
 	data->instrument = instrument;
@@ -23,7 +25,7 @@ inline void update_c_style(int seqNum, int instrument, int price, int volume,
 	data->price = price;
 	data->order_index = (global_context->order_index++) % HISTORY_SIZE;
 	data->specific_index = (global_context->order_indices_bid[instrument]++) % SPECIFIC_HISTORY_SIZE;
-	times[global_context->order_index] = time;
+	times[data->order_index] = time;
 	while (!ck_ring_enqueue_spmc(global_context->buffer, (void *)data)) {
 		;
 	}

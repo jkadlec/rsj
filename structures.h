@@ -8,12 +8,14 @@
 #include "rb.h"
 #include "iresultconsumer.h"
 
-#define THREAD_COUNT 2
+#define THREAD_COUNT 1
 #define HISTORY_SIZE 8
 #define SPECIFIC_HISTORY_SIZE 8
-#define BUFFER_SIZE 16
+#define BUFFER_SIZE 2
 
 #define MEASURE_TIME
+
+#define TESTING_COUNT 1000
 
 enum rsj_consts {
 	INSTRUMENT_COUNT = 20
