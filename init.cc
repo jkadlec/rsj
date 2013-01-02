@@ -117,8 +117,8 @@ void initialize_c_style()
 		lock_init(global_context->order[i], PTHREAD_PROCESS_SHARED);
 		lock_init(global_context->order_sum[i], PTHREAD_PROCESS_SHARED);
 #else
-		global_context->order[i] = LOCK_INIT;
-		global_context->order_sum[i] = LOCK_INIT;
+		global_context->order[i] = CK_SPINLOCK_FAS_INITIALIZER;
+		global_context->order_sum[i] = CK_SPINLOCK_FAS_INITIALIZER;
 #endif
 		lock_lock(&global_context->order[i]);
 		lock_lock(&global_context->order_sum[i]);

@@ -13,7 +13,7 @@ CXX           = g++
 LIBS          = $(SUBLIBS)  -L/usr/lib/x86_64-linux-gnu -I include -lpthread -lrt -I include/gperftools -L include -ltcmalloc_minimal
 DEFINES       =
 CFLAGS        = -pipe -O2 -march=corei7 $(DEFINES) $(LIBS) -DNDEBUG
-CXXFLAGS      = -pipe -O2 -march=corei7 $(DEFINES) $(LIBS) -DNDEBUG
+CXXFLAGS      = -pipe -O2 -march=corei7 $(DEFINES) $(LIBS) -DNDEBUG -std=c++0x
 INCPATH       = 
 LINK          = g++ $(LIBS) -flto
 LFLAGS        = -Wl,-O2
@@ -88,11 +88,6 @@ $(TARGET):  $(OBJECTS)
 dist: 
 	@$(CHK_DIR_EXISTS) .tmp/rsj1.0.0 || $(MKDIR) .tmp/rsj1.0.0 
 	$(COPY_FILE) --parents $(SOURCES) $(DIST) .tmp/rsj1.0.0/ && $(COPY_FILE) --parents debug.h structures.h rb.h iupdateprocessor.h iresultconsumer.h init.h table.h worker.h sync.h helpers.h globals.h .tmp/rsj1.0.0/ && $(COPY_FILE) --parents main.cc rb.c iupdateprocessor.cc init.cc worker.cc globals.cc .tmp/rsj1.0.0/ && (cd `dirname .tmp/rsj1.0.0` && $(TAR) rsj1.0.0.tar rsj1.0.0 && $(COMPRESS) rsj1.0.0.tar) && $(MOVE) `dirname .tmp/rsj1.0.0`/rsj1.0.0.tar.gz . && $(DEL_FILE) -r .tmp/rsj1.0.0
-
-
-clean:compiler_clean 
-	-$(DEL_FILE) $(OBJECTS)
-	-$(DEL_FILE) *~ core *.core
 
 
 ####### Sub-libraries

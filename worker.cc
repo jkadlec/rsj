@@ -20,8 +20,10 @@
 #include "sync.h"
 #include "iresultconsumer.h"
 
+#ifdef MEASURE_TIME
 static uint64_t time_sum = 0;
 static uint64_t max_time = 0;
+#endif
 
 //with threads
 //static const int affinity_map[15] = {1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23, 8};
@@ -80,8 +82,8 @@ void result_testing(int seqNum, double fp_global_i, int index)
 		max_time = nano;
 	}
 #endif
-//	fprintf(stderr, "Result called: %d, %.9f (%d)\n", seqNum, fp_global_i,
-//	        nano);
+	fprintf(stderr, "Result called: %d, %.9f (%d)\n", seqNum, fp_global_i,
+	        nano);
 	if (seqNum == 1001) {
 		destructor_c_style();
 	}
