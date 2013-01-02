@@ -1,0 +1,34 @@
+Instalace:
+	Pred prekladem je potreba zadata (kvuli tcmalloc):
+	LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/include
+	export LD_LIBRARY_PATH
+
+Git branche:
+
+	Na testovani funkcnosti slouzi branch 'testing' - v ni je spustitelny soubor, kteremu se zada vstup v CSV formatu a program vypise hodnoty fp_i_global na stderr.
+
+	Pro zacleneni do testovaciho frameworku slouzi branch 'handout' (defaultni). Definice trid ale nejsou presne podle zadani, protoze pak by to neslo prelozit (metody v IUpdateProcessor nejsou pure a Result() je dummy funkce), i kdyz je mozne, ze je chyba na me strane, protoze s C++ mnoho zkusenosti nemam (cele je to vlastne napsano v C, akorat obalenene do pozadovanych trid a nebyt jich, lze to prelozit gcc).
+
+Popis zdrojovych souboru:
+	- debug.h: Debugovaci zpravy a bloky kodu (4 okruhy - Ring, Threading, Calculation a Test)
+	- helpers.h: Pomocne funkce (next a prev index)
+	- init.h: Implementace Initialize()
+	- rb.h: Reb Black strom
+	- sync.h: Synchronizacni funkce (inline)
+	- table.h: Wrapper stromu s historii cen atd.
+	- worker.h: Implementace Update() + pomocne funcke.
+	- globals.h: Globalni promenne.
+	- structures.h: Rizeni poctu vlaken, velikosti historie, bufferu a druhu sychchronizace. Definice typu, ktere se nevesly jinam
+
+Pouzita funkcionalita z externich knihoven:
+	- tc_malloc (Google perftools http://goog-perftools.sourceforge.net/doc/tcmalloc.html)
+	- Red Black strom pro ukladani dilcich nejlepsich cen (GNU libavl http://adtinfo.org/)
+	- Single Producer Multiple Consumers kruhovy buffer (Concurrency kit http://www.concurrencykit.org)
+	- Fetch and Set Spinlock (Concurrency kit)
+
+Pozn.: Vetsina funckci je inline a vetsina dat je globalnich, z duvodu rychlosti. Ze stejnych duvodu nekontroluju navratoveho hodnoty atd.
+
+Bohuzel program prilis neskaluje. Vysledek s 2 vlakny je lepsi nez jednim (odezva ne, ale propustnoust ano), ale ne nijak vyrazne a dale uz se to pomalu zhorsuje.
+
+
+	
