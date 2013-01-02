@@ -4,7 +4,11 @@
 class IResultConsumer
 {
 	public:
-            void Result(int seqNum, double fp_global_i);
+            void Result(int seqNum, double fp_global_i)
+		{
+			// just so it compiles
+			;
+		}
 };
 
 

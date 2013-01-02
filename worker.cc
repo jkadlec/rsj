@@ -82,8 +82,8 @@ void result_testing(int seqNum, double fp_global_i, int index)
 		max_time = nano;
 	}
 #endif
-	fprintf(stderr, "Result called: %d, %.9f (%d)\n", seqNum, fp_global_i,
-	        nano);
+//	fprintf(stderr, "Result called: %d, %.9f (%d)\n", seqNum, fp_global_i,
+//	        nano);
 	if (seqNum == 1001) {
 		destructor_c_style();
 	}
@@ -154,8 +154,8 @@ inline void compute_return_fp_i(rsj_data_in_t *data, int id, int volbid,
         }
         dbg_calc("Thread %d: data->seqNum=%d data->instrument=%d: %f/%f\n",
                id, data->seqNum, data->instrument, fp_i, sum);
-//	consumer.Result(data->seqNum, res);
-        result_testing(data->seqNum, res, data->order_index);
+	consumer.Result(data->seqNum, res);
+//    result_testing(data->seqNum, res, data->order_index);
         dbg_calc("%d: data->seqNum=%d History=%d Deducting from sum=%f\n", id, data->seqNum, data->specific_index, global_context->fp_i_history[data->instrument][(data->specific_index -1) % HISTORY_SIZE]);
         global_context->sum_history[data->order_index] = sum;
         dbg_calc("%d: data->seqNum=%d History=%d Adding to sum=%f\n",
@@ -236,8 +236,8 @@ dbg_calc_exec(
 			int volask = global_context->asks[local_data->instrument].history[local_data->specific_index];
 			if (unlikely(volask == 0 || volbid == 0 || pricebid == 0)) {
 				/* Sum history unchanged. */
-//				consumer.Result(seqNum, 0.0);
-				result_testing(local_data->seqNum, 0.0, local_data->order_index);
+				consumer.Result(local_data->seqNum, 0.0);
+//				result_testing(local_data->seqNum, 0.0, local_data->order_index);
         			dbg_calc("Thread=%d returning 0 for seqNum=%d - not enough data (%d %d %d).\n",
 		                         id, local_data->seqNum, pricebid, volbid, volask);
 				history_shift(local_data, id);
