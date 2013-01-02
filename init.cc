@@ -49,7 +49,7 @@ int int_comparison(const void *rb_a, const void *rb_b,
 
 void initialize_c_style()
 {
-	stick_this_thread_to_core(1);
+	stick_this_thread_to_core(0);
 	global_context = (context_t *)malloc(sizeof(context_t));
         assert(global_context != NULL);
 	/* Init basic variables. */
@@ -117,8 +117,8 @@ void initialize_c_style()
 		lock_init(global_context->order[i], PTHREAD_PROCESS_SHARED);
 		lock_init(global_context->order_sum[i], PTHREAD_PROCESS_SHARED);
 #else
-		global_context->order[i] = CK_SPINLOCK_DEC_INITIALIZER;
-		global_context->order_sum[i] = CK_SPINLOCK_DEC_INITIALIZER;
+		global_context->order[i] = LOCK_INIT;
+		global_context->order_sum[i] = LOCK_INIT;
 #endif
 		lock_lock(&global_context->order[i]);
 		lock_lock(&global_context->order_sum[i]);

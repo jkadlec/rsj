@@ -8,15 +8,15 @@
 #include "rb.h"
 #include "iresultconsumer.h"
 
-#define THREAD_COUNT 3
-#define HISTORY_SIZE 128
-#define SPECIFIC_HISTORY_SIZE 128
-#define BUFFER_SIZE 4
+#define THREAD_COUNT 2
+#define HISTORY_SIZE 16
+#define SPECIFIC_HISTORY_SIZE 16
+#define BUFFER_SIZE 2
 
-#define MEASURE_TIME
+//#define MEASURE_TIME
 
 #define SPIN
-#define DEC
+#define FAS
 //#define ATOMIC
 
 #ifdef NORMAL
@@ -27,12 +27,23 @@
 #endif
 
 #ifdef DEC
+#define LOCK_INIT CK_SPINLOCK_DEC_INITIALIZER
 #define lock_t ck_spinlock_dec_t
 #define lock_locked ck_spinlock_dec_locked
 #define lock_lock ck_spinlock_dec_lock_eb
 #define lock_trylock ck_spinlock_dec_trylock
 #define lock_unlock ck_spinlock_dec_unlock
 #endif
+
+#ifdef FAS
+#define LOCK_INIT CK_SPINLOCK_FAS_INITIALIZER
+#define lock_t ck_spinlock_fas_t
+#define lock_locked ck_spinlock_fas_locked
+#define lock_lock ck_spinlock_fas_lock_eb
+#define lock_trylock ck_spinlock_fas_trylock
+#define lock_unlock ck_spinlock_fas_unlock
+#endif
+
 
 #define TESTING_COUNT 6000002
 

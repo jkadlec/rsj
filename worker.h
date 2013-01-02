@@ -27,7 +27,9 @@ inline void update_c_style(int seqNum, int instrument, int price, int volume,
 	data->price = price;
 	data->order_index = (global_context->order_index++) % HISTORY_SIZE;
 	data->specific_index = (global_context->order_indices_bid[instrument]++) % SPECIFIC_HISTORY_SIZE;
+#ifdef MEASURE_TIME
 	times[data->order_index] = time;
+#endif
 	while (!ck_ring_enqueue_spmc(global_context->buffer, (void *)data)) {
 		;
 	}

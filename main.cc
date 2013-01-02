@@ -68,7 +68,9 @@ int tester_load_csv_file(const char *filename, rsj_data_t ***data,
 	}
 	
 	*data_count = ++i;
+#ifdef MEASURE_TIME
 	loaded = *data_count;
+#endif
 	return 0;
 }
 
@@ -77,7 +79,9 @@ void do_test(IUpdateProcessor *proc, rsj_data_t **data, size_t count)
 {
 	dbg_test("Testing %d queries.\n",
 	         count);
+#ifdef MEASURE_TIME
 	gettimeofday(&start_time, NULL);
+#endif
 	for (size_t i = 0; i < count; i++) {
 		proc->Update(data[i]->seqNum, data[i]->instrument,
 		             data[i]->price, data[i]->volume, data[i]->side);
@@ -87,7 +91,6 @@ void do_test(IUpdateProcessor *proc, rsj_data_t **data, size_t count)
 int main(int argc, char **argv)
 {
 	/* Load testing .csv */
-	stick_this_thread_to_core(0);
 	rsj_data_t **data = NULL;
 	size_t data_count = 0;
 	int ret = tester_load_csv_file(argv[1], &data,

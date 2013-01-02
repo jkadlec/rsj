@@ -10,10 +10,10 @@
 
 CC            = gcc
 CXX           = g++
-LIBS          = $(SUBLIBS)  -L/usr/lib/x86_64-linux-gnu -I include -lpthread -lrt -I include/gperftools -L include
+LIBS          = $(SUBLIBS)  -L/usr/lib/x86_64-linux-gnu -I include -lpthread -lrt -I include/gperftools -L include -ltcmalloc_minimal
 DEFINES       =
-CFLAGS        = -pipe -O2 -Wall -W -march=corei7 $(DEFINES) $(LIBS) -DNDEBUG -g
-CXXFLAGS      = -pipe -O2 -Wall -W -march=corei7 $(DEFINES) $(LIBS) -DNDEBUG -g
+CFLAGS        = -pipe -O2 -march=corei7 $(DEFINES) $(LIBS) -DNDEBUG
+CXXFLAGS      = -pipe -O2 -march=corei7 $(DEFINES) $(LIBS) -DNDEBUG
 INCPATH       = 
 LINK          = g++ $(LIBS) -flto
 LFLAGS        = -Wl,-O2
@@ -107,25 +107,6 @@ check: first
 mocclean: compiler_moc_header_clean compiler_moc_source_clean
 
 mocables: compiler_moc_header_make_all compiler_moc_source_make_all
-
-compiler_moc_header_make_all:
-compiler_moc_header_clean:
-compiler_rcc_make_all:
-compiler_rcc_clean:
-compiler_image_collection_make_all: qmake_image_collection.cpp
-compiler_image_collection_clean:
-	-$(DEL_FILE) qmake_image_collection.cpp
-compiler_moc_source_make_all:
-compiler_moc_source_clean:
-compiler_uic_make_all:
-compiler_uic_clean:
-compiler_yacc_decl_make_all:
-compiler_yacc_decl_clean:
-compiler_yacc_impl_make_all:
-compiler_yacc_impl_clean:
-compiler_lex_make_all:
-compiler_lex_clean:
-compiler_clean: 
 
 ####### Compile
 

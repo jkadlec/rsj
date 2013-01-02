@@ -21,10 +21,13 @@
 #include "iresultconsumer.h"
 
 static uint64_t time_sum = 0;
+static uint64_t max_time = 0;
 
-//static const int affinity_map[15] = {16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23};
+//with threads
+//static const int affinity_map[15] = {1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23, 8};
 
-static const int affinity_map[15] = {1, 2, 3, 4, 5, 6, 7, 4, 20, 5, 21, 6, 22, 7, 23};
+//whole cores
+static const int affinity_map[15] = {1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23};
 
 void dbg_print_order_indices()
 {
@@ -73,6 +76,9 @@ void result_testing(int seqNum, double fp_global_i, int index)
 	struct timespec diff = timespec_diff(times[index], time);
 	nano = diff.tv_nsec;
 	time_sum += nano;
+	if (nano > max_time) {
+		max_time = nano;
+	}
 #endif
 //	fprintf(stderr, "Result called: %d, %.9f (%d)\n", seqNum, fp_global_i,
 //	        nano);
@@ -260,7 +266,7 @@ void destructor_c_style()
 	struct timeval time;
 	gettimeofday(&time, NULL);
 	long diff = timeval_diff(&start_time, &time);
-	printf("Total=%lu Mean=%llu\n", diff, time_sum/loaded);
+	printf("Total=%lu Mean=%d Max=%d\n", diff, time_sum/loaded, max_time);
 #endif
 	for (int i = 0; i < THREAD_COUNT; i++) {
 		pthread_kill(global_context->worker_threads[i], 2);
