@@ -4,9 +4,11 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <tcmalloc.h>
 #include <sys/time.h>
 
 #include "worker.h"
+#include "init.h"
 #include "structures.h"
 #include "debug.h"
 #include "iupdateprocessor.h"
@@ -80,11 +82,13 @@ void do_test(IUpdateProcessor *proc, rsj_data_t **data, size_t count)
 		proc->Update(data[i]->seqNum, data[i]->instrument,
 		             data[i]->price, data[i]->volume, data[i]->side);
 	}
+	printf("data filled\n");
 }
 
 int main(int argc, char **argv)
 {
 	/* Load testing .csv */
+	stick_this_thread_to_core(0);
 	rsj_data_t **data = NULL;
 	size_t data_count = 0;
 	int ret = tester_load_csv_file(argv[1], &data,

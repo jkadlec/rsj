@@ -22,7 +22,9 @@
 
 static uint64_t time_sum = 0;
 
-static const int affinity_map[15] = {16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23};
+//static const int affinity_map[15] = {16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23};
+
+static const int affinity_map[15] = {1, 2, 3, 4, 5, 6, 7, 4, 20, 5, 21, 6, 22, 7, 23};
 
 void dbg_print_order_indices()
 {

@@ -3,6 +3,7 @@
 
 #include <time.h>
 #include <stdlib.h>
+#include <tcmalloc.h>
 
 #include "structures.h"
 #include "globals.h"

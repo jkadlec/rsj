@@ -2,20 +2,19 @@
 #define STRUCTURES_H
 
 #include <pthread.h>
-#include <malloc.h>
 #include "/home/kadlej16/rsj/include/ck_ring.h"
 
 #include "rb.h"
 #include "iresultconsumer.h"
 
-#define THREAD_COUNT 1
-#define HISTORY_SIZE 128
-#define SPECIFIC_HISTORY_SIZE 128
-#define BUFFER_SIZE 2
+#define THREAD_COUNT 3
+#define HISTORY_SIZE 512
+#define SPECIFIC_HISTORY_SIZE 512
+#define BUFFER_SIZE 4
 
 #define MEASURE_TIME
 
-#define TESTING_COUNT 3000002
+#define TESTING_COUNT 6000002
 
 enum rsj_consts {
 	INSTRUMENT_COUNT = 20

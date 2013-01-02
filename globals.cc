@@ -5,7 +5,7 @@
 #include "iresultconsumer.h"
 
 pthread_barrier_t start_barrier;
-context_t *global_context = (context_t *)malloc(sizeof(context_t));
+context_t *global_context;
 IResultConsumer consumer;
 
 #ifdef MEASURE_TIME

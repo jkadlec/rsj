@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <tcmalloc.h>
 
 #include "worker.h"
 #include "table.h"
@@ -48,7 +49,7 @@ int int_comparison(const void *rb_a, const void *rb_b,
 
 void initialize_c_style()
 {
-	stick_this_thread_to_core(0);
+	stick_this_thread_to_core(1);
 	global_context = (context_t *)malloc(sizeof(context_t));
         assert(global_context != NULL);
 	/* Init basic variables. */

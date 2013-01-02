@@ -1,7 +1,13 @@
 #ifndef SYNC_H
 #define SYNC_H
 
+#include <ck_spinlock.h>
+
 #include "globals.h"
+#include "structures.h"
+
+#ifdef TICKET
+#define lock_t ck_spinlock_ticket_t
 
 inline void wait_until_set_order(unsigned int index)
 {
