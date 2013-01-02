@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <tcmalloc.h>
+#include <ck_spinlock.h>
 
 #include "worker.h"
 #include "table.h"
@@ -23,8 +24,7 @@ void stick_this_thread_to_core(int core_id) {
         CPU_SET(core_id, &cpuset);
 
         pthread_t current_thread = pthread_self();    
-        int return_val = pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
-        assert(return_val == 0);
+        pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
         pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
         for (int j = 0; j < num_cores; j++) {
                 if (CPU_ISSET(j, &cpuset)) {
@@ -96,7 +96,8 @@ void initialize_c_style()
 		global_context->bids[i].price_bid = 0;
 		global_context->bids[i].vol_bid = 0;
 	}
-	
+
+#ifdef ATOMIC
 	for (int i = 0; i < HISTORY_SIZE; i++) {
 		global_context->order[i] = 0;
 		global_context->order_sum[i] = 0;
@@ -106,6 +107,27 @@ void initialize_c_style()
 	/* Ordering. */	
 	global_context->order[HISTORY_SIZE - 1] = 1;
 	global_context->order_sum[HISTORY_SIZE - 1] = 1;
+#endif
+
+#ifdef SPIN
+	for (int i = 0; i < HISTORY_SIZE; i++) {
+//		global_context->order[i] = (lock_t *)malloc(sizeof(lock_t));
+//		global_context->order_sum[i] = (lock_t *)malloc(sizeof(lock_t));
+#ifdef NORMAL
+		lock_init(global_context->order[i], PTHREAD_PROCESS_SHARED);
+		lock_init(global_context->order_sum[i], PTHREAD_PROCESS_SHARED);
+#else
+		global_context->order[i] = CK_SPINLOCK_DEC_INITIALIZER;
+		global_context->order_sum[i] = CK_SPINLOCK_DEC_INITIALIZER;
+#endif
+		lock_lock(&global_context->order[i]);
+		lock_lock(&global_context->order_sum[i]);
+		global_context->sum_history[i] = 0.0;
+	}
+
+	lock_unlock(&global_context->order[HISTORY_SIZE - 1]);
+	lock_unlock(&global_context->order_sum[HISTORY_SIZE - 1]);
+#endif
 	
 	/* Ring buffer. */
 	global_context->buffer = (ck_ring_t *)malloc(sizeof(ck_ring_t));

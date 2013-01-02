@@ -2,17 +2,37 @@
 #define STRUCTURES_H
 
 #include <pthread.h>
-#include "/home/kadlej16/rsj/include/ck_ring.h"
+#include <ck_spinlock.h>
+#include <ck_ring.h>
 
 #include "rb.h"
 #include "iresultconsumer.h"
 
-#define THREAD_COUNT 3
-#define HISTORY_SIZE 512
-#define SPECIFIC_HISTORY_SIZE 512
-#define BUFFER_SIZE 4
+#define THREAD_COUNT 1
+#define HISTORY_SIZE 16
+#define SPECIFIC_HISTORY_SIZE 16
+#define BUFFER_SIZE 2
 
 #define MEASURE_TIME
+
+//#define SPIN
+//#define DEC
+#define ATOMIC
+
+#ifdef NORMAL
+#define lock_t pthread_spinlock_t
+#define lock_init pthread_spin_init
+#define lock_lock pthread_spin_lock
+#define lock_unlock pthread_spin_unlock
+#endif
+
+#ifdef DEC
+#define lock_t ck_spinlock_dec_t
+#define lock_locked ck_spinlock_dec_locked
+#define lock_lock ck_spinlock_dec_lock_eb
+#define lock_trylock ck_spinlock_dec_trylock
+#define lock_unlock ck_spinlock_dec_unlock
+#endif
 
 #define TESTING_COUNT 6000002
 
@@ -89,8 +109,14 @@ struct context {
 	pthread_t worker_threads[THREAD_COUNT];
 	unsigned int order_index;
 	unsigned int order_indices_bid[INSTRUMENT_COUNT];
-	volatile int order[HISTORY_SIZE];
-	volatile int order_sum[HISTORY_SIZE];
+#ifdef ATOMIC
+	int order[HISTORY_SIZE];
+	int order_sum[HISTORY_SIZE];
+#endif
+#ifdef SPIN
+	lock_t order[HISTORY_SIZE];
+	lock_t order_sum[HISTORY_SIZE];
+#endif
 	double sum_history[HISTORY_SIZE];
 	double *fp_i_history[INSTRUMENT_COUNT];
 	ck_ring_t *buffer;

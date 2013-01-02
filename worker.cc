@@ -161,7 +161,9 @@ inline void compute_return_fp_i(rsj_data_in_t *data, int id, int volbid,
         global_context->fp_i_history[data->instrument][data->specific_index] = fp_i;
         dbg_threading("%d: data->seqNum=%d index=%d Unlocking sums.\n",
         id, data->seqNum, data->order_index);
+#ifdef ATOMIC
         sync_set_order_sum(data->order_index);
+#endif
         /* Work done. */
 }
 
@@ -203,9 +205,10 @@ void *worker_start(void *null_data)
 			;
 		}
 		dbg_ring("dequeded seqNum=%d\n",
-		         global_context->worker_data[id]->seqNum);
-		
+		         local_data->seqNum);
+		dbg_threading("Unlocking order=%d\n", next_index(local_data->order_index));
 		sync_unset_order(next_index(local_data->order_index));
+		dbg_threading("Unlocking order sum=%d\n", next_index(local_data->order_index));
 		sync_unset_order_sum(next_index(local_data->order_index));
 			
 		insert_data(local_data, id);

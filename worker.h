@@ -4,6 +4,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <tcmalloc.h>
+#include <stdio.h>
 
 #include "structures.h"
 #include "globals.h"
