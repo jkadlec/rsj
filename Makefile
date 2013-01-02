@@ -10,7 +10,7 @@
 
 CC            = gcc
 CXX           = g++
-LIBS          = $(SUBLIBS)  -L/usr/lib/x86_64-linux-gnu -I include -lpthread -lrt -I include/gperftools -L include -ltcmalloc_minimal
+LIBS          = $(SUBLIBS)  -L/usr/lib/x86_64-linux-gnu -I include -lpthread -lrt -I include/gperftools -L include
 DEFINES       =
 CFLAGS        = -pipe -O2 -Wall -W -march=corei7 $(DEFINES) $(LIBS) -DNDEBUG -g
 CXXFLAGS      = -pipe -O2 -Wall -W -march=corei7 $(DEFINES) $(LIBS) -DNDEBUG -g

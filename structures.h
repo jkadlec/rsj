@@ -11,13 +11,13 @@
 #define THREAD_COUNT 1
 #define HISTORY_SIZE 16
 #define SPECIFIC_HISTORY_SIZE 16
-#define BUFFER_SIZE 2
+#define BUFFER_SIZE 64
 
 #define MEASURE_TIME
 
-//#define SPIN
-//#define DEC
-#define ATOMIC
+#define SPIN
+#define DEC
+//#define ATOMIC
 
 #ifdef NORMAL
 #define lock_t pthread_spinlock_t

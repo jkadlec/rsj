@@ -161,9 +161,7 @@ inline void compute_return_fp_i(rsj_data_in_t *data, int id, int volbid,
         global_context->fp_i_history[data->instrument][data->specific_index] = fp_i;
         dbg_threading("%d: data->seqNum=%d index=%d Unlocking sums.\n",
         id, data->seqNum, data->order_index);
-#ifdef ATOMIC
         sync_set_order_sum(data->order_index);
-#endif
         /* Work done. */
 }
 
