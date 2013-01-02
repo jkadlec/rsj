@@ -2,8 +2,8 @@
 #define DEBUG_H
 
 //#define TEST_DEBUG
-#define CALC_DEBUG
-#define THREADING_DEBUG
+//#define CALC_DEBUG
+//efine THREADING_DEBUG
 //#define RING_DEBUG
 
 #ifdef TEST_DEBUG

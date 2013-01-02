@@ -8,10 +8,10 @@
 #include "rb.h"
 #include "iresultconsumer.h"
 
-#define THREAD_COUNT 1
-#define HISTORY_SIZE 16
-#define SPECIFIC_HISTORY_SIZE 16
-#define BUFFER_SIZE 64
+#define THREAD_COUNT 3
+#define HISTORY_SIZE 128
+#define SPECIFIC_HISTORY_SIZE 128
+#define BUFFER_SIZE 4
 
 #define MEASURE_TIME
 

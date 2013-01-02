@@ -82,7 +82,6 @@ void do_test(IUpdateProcessor *proc, rsj_data_t **data, size_t count)
 		proc->Update(data[i]->seqNum, data[i]->instrument,
 		             data[i]->price, data[i]->volume, data[i]->side);
 	}
-	printf("data filled\n");
 }
 
 int main(int argc, char **argv)
